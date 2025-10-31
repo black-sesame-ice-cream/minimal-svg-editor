@@ -81,6 +81,11 @@
         .github-icon-link img {width: 32px; height: 32px;}
         .github-icon-link:hover img {transform: scale(1.1);}
 
+
+        /* (ここから変更) オートコンプリートのスタイルを削除 */
+        
+        /* (ここまで変更) */
+
     </style>
 </head>
 <!-- (変更) body に flex flex-col を追加し、背景色を bg-black に変更 -->
@@ -151,6 +156,7 @@
         </div>
 
         <!-- 右側: エディタエリア -->
+        <!-- (変更) position: relative を削除 -->
         <div id="editor-container" class="w-full md:w-1/2 h-1/2 md:h-full p-4 shadow-lg rounded-lg m-2 flex flex-col transition-colors duration-150">
             <!-- コントロールバー: -->
             <div id="control-bar" class="flex items-center justify-start flex-wrap gap-x-4 gap-y-2 mb-2 p-2 rounded-md transition-colors duration-150">
@@ -486,14 +492,98 @@ SVG
                 }
             }
 
-            // テキストエリアの入力イベント
+            // ここからコード補完機能 
+            const snippets = {
+                '<svg': '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">\n\t\n</svg>',
+                '<r': '<rect x="" y="" width="" height="" fill="#fff" stroke="#000" stroke-width=""/>',
+                '<c': '<circle cx="" cy="" r="" fill="#fff" stroke="#000" stroke-width=""/>',
+                '<e': '<ellipse cx="" cy="" rx="" ry="" fill="#fff" stroke="#000" stroke-width=""/>',
+                '<l': '<line x1="" y1="" x2="" y2="" stroke="#000" stroke-width=""/>',
+                '<pl': '<polyline points="" fill="none" stroke="#000" stroke-width=""/>',
+                '<pg': '<polygon points="" fill="#fff" stroke="#000" stroke-width=""/>',
+                '<p': '<path d="" fill="none" stroke="#000" stroke-width=""/>',
+                '<t': '<text x="" y="" fill="#000" font-size="">text</text>',
+                '<g': '<g>\n\t\n</g>',
+                '<defs': '<defs>\n\t\n</defs>',
+                '<lg': '<linearGradient id="" x1="0%" y1="0%" x2="100%" y2="0%">\n\t<stop offset="0%" stop-color="" />\n\t<stop offset="100%" stop-color="" />\n</linearGradient>',
+                '<rg': '<radialGradient id="" cx="50%" cy="50%" r="50%">\n\t<stop offset="0%" stop-color="" />\n\t<stop offset="100%" stop-color="" />\n</radialGradient>',
+                '<ptn': '<pattern id="" width="" height="" patternUnits="userSpaceOnUse">\n\t\n</pattern>',
+                '<use': '<use href="#id" x="" y=""/>'
+            };
+
+            // TabキーとEnterキーの処理
+            editor.addEventListener('keydown', (e) => {
+                if (editor.readOnly) return;
+
+                // Tab または Enter が押されたか
+                if (e.key === 'Tab' || e.key === 'Enter') {
+                    const start = editor.selectionStart;
+                    const textBefore = editor.value.substring(0, start);
+                    let triggerKey = null;
+                    // カーソル直前のテキストがスニペットキーで終わっているか確認
+                    for (const key of Object.keys(snippets)) {
+                        if (textBefore.endsWith(key)) {
+                            triggerKey = key;
+                            break; // 最初の（最も一致する）キーを見つける
+                        }
+                    }
+
+                    // スニペットキーが見つかった場合
+                    if (triggerKey) {
+                        e.preventDefault(); // Tab/Enterのデフォルト動作をキャンセル
+                        
+                        const snippetValue = snippets[triggerKey];
+                        
+                        // トリガーキー (例: "<r") を削除
+                        const newTextBefore = textBefore.substring(0, textBefore.length - triggerKey.length);
+                        const textAfter = editor.value.substring(start);
+                        
+                        editor.value = newTextBefore + snippetValue + textAfter;
+
+                        // カーソル位置の計算
+                        // 雛形内の最初の "" の中央にカーソルを移動させる
+                        const firstQuoteIndex = snippetValue.indexOf('""');
+                        let newCursorPos;
+                        if (firstQuoteIndex !== -1) {
+                            // " の直後 ( "" の間 )
+                            newCursorPos = newTextBefore.length + firstQuoteIndex + 1;
+                        } else {
+                            // "" がなければ、スニペットの末尾へ
+                            newCursorPos = newTextBefore.length + snippetValue.length; 
+                        }
+
+                        editor.selectionStart = editor.selectionEnd = newCursorPos;
+
+                        updatePreview(); // プレビューを更新
+
+                    } else if (e.key === 'Tab') {
+                        // スニペットは見つからず、Tabキーが押された場合 (通常のTab挿入)
+                        e.preventDefault();
+                        const end = editor.selectionEnd;
+                        editor.value = editor.value.substring(0, start) + '\t' + editor.value.substring(end);
+                        editor.selectionStart = editor.selectionEnd = start + 1;
+                        updatePreview();
+                    }
+                    // スニペットが見つからず、Enterキーが押された場合は、
+                    // e.preventDefault() していないので、通常の改行が入力される
+                
+                }
+            });
+
+
+            // (変更) テキストエリアの入力イベント (補完チェックを削除)
             editor.addEventListener('input', () => {
-                // 最小化中は入力イベントを無視 (readOnlyだが念のため)
                 if (editor.readOnly) return;
                 
-                // 編集可能時のみプレビューを更新
                 updatePreview();
+                
+                // 補完チェックの呼び出しを削除
             });
+            
+            // (削除) 'click' と 'blur' のイベントリスナーを削除
+
+            // ★★★ (コード補完機能ここまで) ★★★
+
 
             // ページ読み込み時に最初のプレビューを実行
             updatePreview();
@@ -789,6 +879,7 @@ SVG
                         if (minimizeCheckbox.checked) {
                             minimizeCheckbox.checked = false;
                             editor.readOnly = false;
+                            setEditorTextColor(textColorPicker.value); // 色を戻す
                         }
                         
                         updatePreview(); // プレビューを更新
@@ -863,4 +954,5 @@ SVG
 
 </body>
 </html>
+
 
