@@ -18,30 +18,46 @@ https://black-sesame-ice-cream.github.io/minimal-svg-editor/
 https://black-sesame-ice-cream.github.io/minimal-svg-editor/
 
 ## Overview
-A minimal web tool for real-time SVG editing and previewing.
-It features live updates, file loading/saving, code minification, and an interactive preview with pan, zoom, and customizable grid lines. The editor and preview panes are also themeable.
+A minimal, web-based SVG editor that runs entirely in the browser. It features a split-screen layout with a code editor and a real-time preview panel.
+
+This tool is lightweight, requires no installation, and provides essential features such as live rendering, pan & zoom, auxiliary grid display, code minification, and file handling.
 
 ## 概要
-SVGのリアルタイム編集とプレビューを行うための、最小限のWebツールです。
-ライブアップデート、ファイルの読み込み/保存、コードの最小化、そしてパン・ズーム・カスタマイズ可能なグリッド線を備えたインタラクティブなプレビュー機能が特徴です。エディタとプレビューのUIもカスタマイズ可能です。
+ブラウザ上で完結する、最小限構成のWebベースSVGエディタです。コードエディタとリアルタイムプレビューパネルを備えた分割画面レイアウトが特徴です。
+
+インストール不要の軽量設計でありながら、ライブレンダリング、パン＆ズーム、補助グリッド表示、コードの最小化、ファイル操作といった基本機能を提供します。
 
 ## Usage
-- **Real-time Editing:** Edit SVG code in the right-hand text area. Changes are reflected in the left-hand preview in real time.
-- **Preview Interaction:** Use the mouse wheel to zoom and drag (left-click) to pan the preview.
-- **Open SVG:** Click the "Open SVG" button to load a local SVG file into the editor.
-- **Save SVG:** Click the "Save SVG" button to download the current content of the editor as an `.svg` file.
-- **Minify:** Check the "Minify" box to view a minified (comments and extra whitespace removed) version of the code. The editor becomes read-only in this mode.
-- **Grid Lines:** Use the controls in the preview panel ("H-Div", "V-Div") to display auxiliary grid lines over the SVG. You can also change the grid color ("Line Color") and its Z-order ("Line" - front/back).
-- **UI Customization:** Use the color pickers and inputs at the top of each panel to customize the background color, text color, and font size for both the editor and the preview area.
+- **Code Editing**: Edit the SVG code directly in the text area on the right (or bottom on mobile).
+- **Live Preview**: Changes are instantly reflected in the preview panel on the left (or top on mobile).
+- **Pan & Zoom**: Drag the preview area to pan, and use the mouse wheel to zoom.
+- **Auxiliary Grid**: Use the preview control bar to set the number of grid divisions (horizontal/vertical), line color, and Z-index (front/back).
+- **Theme Customization**: Change the background and text colors of the editor and preview panels using the color pickers in their respective control bars.
+- **File Operations**:
+    - **Open**: Click "SVGを開く" (Open SVG) to load a local SVG file.
+    - **Save**: Click "SVGを保存" (Save SVG) to download the current code as an `.svg` file.
+- **Minification**:
+    - Check "最小化" (Minimize) to compress the SVG code (removes comments, extra whitespace).
+    - Specify the number of decimal places to round to using the "小数点" (Decimal) input (-1 disables rounding).
+    - **Note**: This process can be destructive and may break complex SVGs. Editing is disabled while in minification mode.
+- **Snippets**: Type abbreviations like `<r`, `<c`, `<p`, etc., in the editor and press `Tab` or `Enter` to expand them into common SVG element templates.
+- **Layout Resizing**: Drag the central resize bar to adjust the size ratio of the editor and preview panels.
 
 ## 使い方
-- **リアルタイム編集:** 右側のテキストエリアでSVGコードを編集します。変更はリアルタイムで左側のプレビューに反映されます。
-- **プレビュー操作:** マウスホイールでズーム、ドラッグ（左クリック）でプレビューをパン（移動）できます。
-- **SVGを開く:** 「SVGを開く」ボタンをクリックすると、ローカルのSVGファイルをエディタに読み込みます。
-- **SVGを保存:** 「SVGを保存」ボタンをクリックすると、エディタの現在の内容を `.svg` ファイルとしてダウンロードします。
-- **最小化:** 「最小化」チェックボックスをオンにすると、コードの最小化版（コメントや余分な空白を削除）を表示します。このモードではエディタは読み取り専用になります。
-- **グリッド線:** プレビューパネルの「横分割」「縦分割」コントロールで、SVGの上に補助グリッド線を表示できます。「線色」でグリッドの色を、「線」で前後（背面/前面）を変更することも可能です。
-- **UIカスタマイズ:** 各パネル上部のカラーピッカーや入力欄で、エディタとプレビューエリアそれぞれの背景色、文字色、フォントサイズをカスタマイズできます。
+- **コード編集**: 右側（モバイルでは下側）のテキストエリアでSVGコードを直接編集します。
+- **ライブプレビュー**: 編集内容は即座に左側（モバイルでは上側）のプレビューパネルに反映されます。
+- **パンとズーム**: プレビューエリアをドラッグしてパン（移動）、マウスホイールでズームが可能です。
+- **補助線**: プレビューコントロールバーで、グリッドの分割数（横分割・縦分割）、線の色、前後関係（背面/前面）を設定できます。
+- **テーマ変更**: 各パネルのコントロールバーにあるカラーピッカーで、エディタやプレビューの背景色・文字色を変更できます。
+- **ファイル操作**:
+    - **開く**: 「SVGを開く」ボタンでローカルのSVGファイルを読み込みます。
+    - **保存**: 「SVGを保存」ボタンで現在のコードを `.svg` ファイルとしてダウンロードします。
+- **最小化**:
+    - 「最小化」チェックボックスをオンにすると、SVGコードが圧縮（コメント除去、余白削除）されます。
+    - 「小数点」入力で、数値を丸める小数点以下の桁数を指定できます（-1で無効）。
+    - **注意**: この処理は破壊的であり、複雑なSVGを壊す可能性があります。最小化モード中はエディタが読み取り専用になります。
+- **スニペット**: エディタ内で `<r` や `<c`、`<p` などの短縮形を入力し `Tab` または `Enter` キーを押すと、SVG要素のテンプレートに展開されます。
+- **レイアウト変更**: 中央のリサイズバーをドラッグすることで、エディタとプレビューのパネルサイズ比率を調整できます。
 
 ## Licenses
 Please see below for details.
@@ -58,6 +74,7 @@ Please see below for details.
 [第三者ライセンス](THIRD-PARTY-LICENSES.txt/)
 
 ## Tech Stack
-- HTML
-- Tailwind CSS
-- JavaScript (Vanilla)
+- HTML5
+- CSS3 (Flexbox)
+- Vanilla JavaScript (ES6+)
+- Tailwind CSS (via CDN)

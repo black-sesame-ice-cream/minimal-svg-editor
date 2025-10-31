@@ -214,7 +214,7 @@
                     <!-- 小数点桁数入力 -->
                     <div class="flex items-center space-x-2">
                         <label for="decimal-places-input" class="text-gray-300 text-sm font-medium">小数点</label>
-                        <input type="number" id="decimal-places-input" min="-1" max="16" value="2"
+                        <input type="number" id="decimal-places-input" min="-1" max="1" value="2"
                                class="w-14 preview-input preview-input-light" title="最小化時の小数点以下の桁数 (-1で無効, 0-16)">
                     </div>
                     <!-- 最小化チェックボックス -->
@@ -231,7 +231,6 @@
                           spellcheck="false">
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
 
-<!-- これはHTMLコメントです -->
 <defs>
 	<linearGradient id="myGradient" x1="0%" y1="0%" x2="100%" y2="0%">
 		<stop offset="0%" stop-color="#ff0000"/> 
@@ -240,22 +239,7 @@
 
 	<pattern id="myPattern" width="20" height="20" patternUnits="userSpaceOnUse">
 		<circle cx="10" cy="10" r="5" fill="url(#myGradient)"/>
-	</pattern>
-    
-    <style>
-        /* これはCSSコメントです */
-        .heavy {
-            stroke-width: 5.5555;
-        }
-    </style>
-    
-    <script>
-        // これはJSの行コメントです
-        function test() {
-            /* これはJSのブロックコメントです */
-            console.log("test"); // 1.2345
-        }
-    </script>
+	</pattern>  
 </defs>
 
 <polygon points="50.12345,5.6789 61,40 98,40 68,62 79,96 50,75 21,96 32,62 2,40 39,40"
