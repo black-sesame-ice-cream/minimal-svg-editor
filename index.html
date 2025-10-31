@@ -336,13 +336,6 @@
 
                 // 1a. HTMLコメント削除
                 minified = minified.replace(/<!--[\s\S]*?-->/g, '');
-                
-                // 1b. CSS/JS ブロックコメント削除 (/* ... */)
-                minified = minified.replace(/\/\*[\s\S]*?\*\//g, '');
-
-                // 1c. JS 行コメント削除 (// ...)
-                // (注意: SVG属性値やテキストノード内の '//' も削除される可能性あり)
-                minified = minified.replace(/\/\/[^\r\n]*/g, '');
 
                 // 1d. (変更) すべての改行を削除
                 minified = minified.replace(/[\r\n]+/g, ''); // 改行を完全に削除
@@ -373,11 +366,11 @@
                 protect(/<style[\s\S]*?<\/style>/gi);
                 protect(/<script[\s\S]*?<\/script>/gi);
                 
-                // 2b. 破壊されると困る属性 (id, href, style, values, keyTimes)
+                // 2b. 破壊されると困る属性 (id, href, style, xmlns)
                 // ダブルクォートの場合
-                protect(/\s+(id|href|style|values|keyTimes)\s*=\s*"[^"]*"/gi);
+                protect(/\s+(id|href|style|xmlns)\s*=\s*"[^"]*"/gi);
                 // シングルクォートの場合
-                protect(/\s+(id|href|style|values|keyTimes)\s*=\s*'[^']*'/gi);
+                protect(/\s+(id|href|style|xmlns)\s*=\s*'[^']*'/gi);
 
                 // --- ステップ3: 小数点丸め (保護後) ---
                 
