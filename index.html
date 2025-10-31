@@ -268,6 +268,7 @@
             let panStartY = 0;
             let originalSvgContent = ''; // 最小化前のSVGを保持
             let isResizing = false;
+            let lastSvgAttrs = null; // (変更) 最後に解析したSVG属性を保持
 
             // --- DOM Elements ---
             const editor = document.getElementById('svg-editor');
@@ -557,8 +558,8 @@
             /**
              * プレビューに補助線グリッドを描画します。
              */
-            function drawGrid(svgElement, attrs) {
-                if (!svgElement) {
+            function drawGrid(svgElement, attrs, currentScale = 1.0) { // (変更) currentScale を引数に追加
+                if (!svgElement || !attrs) { // (変更) attrs もチェック
                     gridSvg.innerHTML = '';
                     return;
                 }
@@ -579,6 +580,9 @@
                     }
 
                     const [vbX, vbY, vbWidth, vbHeight] = attrs.vbParts;
+                    // (変更) newViewBoxValue をパースして newWidth/newHeight を取得
+                    const [newX, newY, newWidth, newHeight] = attrs.newViewBoxValue.split(' ').map(Number);
+
 
                     gridSvg.setAttribute('viewBox', attrs.newViewBoxValue);
                     
@@ -594,22 +598,85 @@
                     const rows = Math.max(1, Math.min(GRID_MAX_DIVISIONS, parseInt(gridRowsInput.value, 10) || 1));
                     const zIndexOption = gridZSelect.value;
                     
+                    // (新規) コンテナサイズ取得
+                    const containerWidth = preview.clientWidth;
+                    const containerHeight = preview.clientHeight;
+
+                    // (新規) ゼロ除算防止
+                    if (containerWidth <= 0 || containerHeight <= 0 || newWidth <= 0 || newHeight <= 0) {
+                        gridSvg.innerHTML = '';
+                        return;
+                    }
+
+                    // (新規) 1ピクセルがviewBox単位でいくつに相当するかを計算
+                    const containerAspect = containerWidth / containerHeight;
+                    const viewBoxAspect = newWidth / newHeight; // (変更) newWidth/newHeight を使用
+
+                    let unitsPerPixel;
+                    // (変更) `preserveAspectRatio` の "meet" ロジックに基づいて計算
+                    if (viewBoxAspect > containerAspect) {
+                        // ViewBox is wider than container, so width is the limiting dimension
+                        unitsPerPixel = newWidth / (containerWidth * currentScale);
+                    } else {
+                        // ViewBox is taller than container (or same aspect), so height is the limiting dimension
+                        unitsPerPixel = newHeight / (containerHeight * currentScale);
+                    }
+
+                    // (新規) 画面ピクセルベースでサイズを定義
+                    const desiredStrokeWidthPx = 1;
+                    const desiredFontSizePx = 10;
+                    const desiredGapPx = 2; // 線とテキストの隙間
+
+                    // (新規) viewBox単位に変換
+                    const dynamicStrokeWidth = desiredStrokeWidthPx * unitsPerPixel;
+                    const dynamicFontSize = desiredFontSizePx * unitsPerPixel;
+                    const textOffset = desiredGapPx * unitsPerPixel; // 隙間
+
                     let pathD = '';
+                    let textElements = ''; // (変更) テキスト要素用の文字列を初期化
+                    
+                    // (削除) 以前の baseFontSize, baseStrokeWidth の計算を削除
+
                     if (cols > 1) {
                         for (let i = 1; i < cols; i++) {
                             const x = vbX + (vbWidth / cols) * i;
                             pathD += `M ${x} ${vbY} V ${vbY + vbHeight} `; 
+                            
+                            // (変更) dynamicFontSize, textOffset を使用し、dominant-baseline を調整
+                            const yPos = vbY - textOffset; // 線の上側にオフセット
+                            textElements += `<text x="${x}" y="${yPos}" 
+                                                  font-size="${dynamicFontSize}" fill="${gridColor}" 
+                                                  text-anchor="middle" dominant-baseline="text-after-edge">
+                                                ${x.toFixed(0)}
+                                            </text>`;
                         }
                     }
                     if (rows > 1) {
                         for (let j = 1; j < rows; j++) {
                             const y = vbY + (vbHeight / rows) * j;
                             pathD += `M ${vbX} ${y} H ${vbX + vbWidth} `; 
+
+                            // (変更) dynamicFontSize, textOffset を使用
+                            const xPos = vbX - textOffset; // 線の左側にオフセット
+                            textElements += `<text x="${xPos}" y="${y}" 
+                                                  font-size="${dynamicFontSize}" fill="${gridColor}" 
+                                                  text-anchor="end" dominant-baseline="middle">
+                                                ${y.toFixed(0)}
+                                            </text>`;
                         }
                     }
-                    const strokeWidth = 1;
+                    
+                    // (変更) strokeWidth を dynamicStrokeWidth に
                     const borderPathD = `M ${vbX} ${vbY} H ${vbX + vbWidth} V ${vbY + vbHeight} H ${vbX} Z`;
-                    gridSvg.innerHTML = `<path d="${borderPathD} ${pathD}" stroke="${gridColor}" stroke-width="${strokeWidth}" fill="none" vector-effect="non-scaling-stroke" />`;
+
+                    // (変更) innerHTMLに <path> と <text> を <g> で囲んで設定 (path から vector-effect を削除)
+                    gridSvg.innerHTML = `<g>
+                                            <path d="${borderPathD} ${pathD}" 
+                                                  stroke="${gridColor}" stroke-width="${dynamicStrokeWidth}" 
+                                                  fill="none" />
+                                            ${textElements}
+                                         </g>`;
+
 
                     if (zIndexOption === 'back') {
                         userSvgWrapper.style.zIndex = '10';
@@ -630,12 +697,12 @@
              */
             function renderPreview() {
                 const svgCodeRaw = editor.value;
-                const attrs = parseSvgAttributes(svgCodeRaw);
-                const svgCodeUpdated = updateSvgAttributes(svgCodeRaw, attrs);
+                lastSvgAttrs = parseSvgAttributes(svgCodeRaw); // (変更) 属性をグローバルに保存
+                const svgCodeUpdated = updateSvgAttributes(svgCodeRaw, lastSvgAttrs);
 
                 userSvgWrapper.innerHTML = svgCodeUpdated; 
                 const svgElement = userSvgWrapper.querySelector('svg'); 
-                drawGrid(svgElement, attrs);
+                drawGrid(svgElement, lastSvgAttrs, scale); // (変更) scale を渡す
             }
 
             // --- Pan & Zoom ---
@@ -663,6 +730,10 @@
                     scale = newScale;
                     
                     applyPanZoom();
+
+                    // (新規) ズーム後にグリッドを再描画
+                    const svgElement = userSvgWrapper.querySelector('svg');
+                    drawGrid(svgElement, lastSvgAttrs, scale);
                 });
 
                 // パン (ドラッグ)
@@ -678,6 +749,7 @@
                     translateX = e.clientX - panStartX;
                     translateY = e.clientY - panStartY;
                     applyPanZoom();
+                    // (注) パンではスケールは変わらないのでグリッド再描画は不要
                 });
                 preview.addEventListener('mouseup', () => {
                     isPanning = false;
@@ -918,3 +990,6 @@
 
 </body>
 </html>
+
+
+
