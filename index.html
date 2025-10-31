@@ -71,7 +71,7 @@
             background-color: #282828;
             color: #d8d8d8;
         }
-        .github-icon-link {position: fixed; top: 4px; right: 4px; z-index: 999;}
+        .github-icon-link {position: fixed; bottom: 4px; right: 4px; z-index: 999;}
         .github-icon-link img {width: 32px; height: 32px;}
         .github-icon-link:hover img {transform: scale(1.1);}
 
@@ -116,7 +116,7 @@
         <div id="preview-container" class="shadow-lg flex flex-col transition-colors duration-150 flex-1 overflow-hidden" style="flex-basis: 50%; min-height: 200px; min-width: 200px;">
             <div class="flex flex-col h-full">
                 <!-- プレビュー コントロールバー -->
-                <div id="preview-control-bar" class="flex items-center justify-start flex-wrap gap-x-4 gap-y-2 p-2 rounded-md transition-colors duration-150">
+                <div id="preview-control-bar" class="flex items-center justify-start flex-wrap gap-3 gap-y-2 p-2 rounded-md transition-colors duration-150">
                     <!-- プレビュー背景色 -->
                     <div class="flex items-center space-x-2">
                         <label for="preview-bg-color-picker" id="preview-bg-label" class="text-gray-600 text-sm font-medium">背景</label>
@@ -177,7 +177,7 @@
         <div id="editor-container" class="shadow-lg flex flex-col transition-colors duration-150 flex-1 overflow-hidden" style="flex-basis: 50%; min-height: 200px; min-width: 200px;">
             <div class="flex flex-col h-full">
                 <!-- コントロールバー -->
-                <div id="control-bar" class="flex items-center justify-start flex-wrap gap-x-4 gap-y-2 p-2 rounded-md transition-colors duration-150">
+                <div id="control-bar" class="flex items-center justify-start flex-wrap gap-3 gap-y-2 p-2 rounded-md transition-colors duration-150">
                     
                     <!-- 背景色 -->
                     <div class="flex items-center space-x-2">
@@ -211,10 +211,17 @@
                             SVGを保存
                         </button>
                     </div>
+                    <!-- 小数点桁数入力 -->
+                    <div class="flex items-center space-x-2">
+                        <label for="decimal-places-input" class="text-gray-300 text-sm font-medium">小数点</label>
+                        <input type="number" id="decimal-places-input" min="-1" max="16" value="2"
+                               class="w-14 preview-input preview-input-light" title="最小化時の小数点以下の桁数 (-1で無効, 0-16)">
+                    </div>
                     <!-- 最小化チェックボックス -->
                     <div class="flex items-center space-x-2">
-                        <input type="checkbox" id="minimize-svg-checkbox" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-600 ring-offset-gray-800 focus:ring-2">
                         <label for="minimize-svg-checkbox" class="text-gray-300 text-sm font-medium">最小化</label>
+                        <input type="checkbox" id="minimize-svg-checkbox" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-600 ring-offset-gray-800 focus:ring-2"
+                                title="破壊的な場合あり">
                     </div>
                 </div>
                 
@@ -224,6 +231,7 @@
                           spellcheck="false">
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
 
+<!-- これはHTMLコメントです -->
 <defs>
 	<linearGradient id="myGradient" x1="0%" y1="0%" x2="100%" y2="0%">
 		<stop offset="0%" stop-color="#ff0000"/> 
@@ -233,10 +241,25 @@
 	<pattern id="myPattern" width="20" height="20" patternUnits="userSpaceOnUse">
 		<circle cx="10" cy="10" r="5" fill="url(#myGradient)"/>
 	</pattern>
+    
+    <style>
+        /* これはCSSコメントです */
+        .heavy {
+            stroke-width: 5.5555;
+        }
+    </style>
+    
+    <script>
+        // これはJSの行コメントです
+        function test() {
+            /* これはJSのブロックコメントです */
+            console.log("test"); // 1.2345
+        }
+    </script>
 </defs>
 
-<polygon points="50,5 61,40 98,40 68,62 79,96 50,75 21,96 32,62 2,40 39,40"
-	fill="url(#myPattern)" stroke="#ff0" stroke-width="1" />
+<polygon points="50.12345,5.6789 61,40 98,40 68,62 79,96 50,75 21,96 32,62 2,40 39,40"
+	fill="url(#myPattern)" stroke="#ff0" stroke-width="1.0" />
 
 </svg></textarea>
             </div>
@@ -287,6 +310,7 @@
             const fileInput = document.getElementById('svg-file-input');
             const saveButton = document.getElementById('save-svg-button');
             const minimizeCheckbox = document.getElementById('minimize-svg-checkbox');
+            const decimalPlacesInput = document.getElementById('decimal-places-input'); 
 
             // Preview Controls
             const previewContainer = document.getElementById('preview-container');
@@ -313,16 +337,93 @@
             // --- Utility Functions ---
 
             /**
-             * SVG文字列からコメントとタグ間の余分な空白・改行を削除します。
+             * SVG文字列を最小化します。
+             * (変更) 以下の順序で実行
+             * 1. 保護なしで安全なコメント・空白を削除 (HTML, CSS, JSコメント対応)
+             * 2. style/script/特定属性を保護
+             * 3. 小数点を丸める
+             * 4. 保護を解除
              */
-            function minifySvg(svgString) {
+            function minifySvg(svgString, digits) {
                 if (typeof svgString !== 'string') return '';
                 let minified = svgString;
+
+                // --- ステップ1: 保護なしで安全な削除 ---
+
+                // 1a. HTMLコメント削除
                 minified = minified.replace(/<!--[\s\S]*?-->/g, '');
-                minified = minified.replace(/>\s*[\r\n]+\s*</g, '><'); // 改行を含む場合
-                minified = minified.replace(/>\s+</g, '><'); // 改行を含まない空白のみの場合
+                
+                // 1b. CSS/JS ブロックコメント削除 (/* ... */)
+                minified = minified.replace(/\/\*[\s\S]*?\*\//g, '');
+
+                // 1c. JS 行コメント削除 (// ...)
+                // (注意: SVG属性値やテキストノード内の '//' も削除される可能性あり)
+                minified = minified.replace(/\/\/[^\r\n]*/g, '');
+
+                // 1d. (変更) すべての改行を削除
+                minified = minified.replace(/[\r\n]+/g, ''); // 改行を完全に削除
+
+                // 1e. (変更) タグ間の空白を削除 (改行はステップ1dで削除済み)
+                minified = minified.replace(/>\s+</g, '><');
+
+                // 1f. (新規) 2個以上続くスペースを1個にする
+                // (タブはスペースに変換してから圧縮)
+                minified = minified.replace(/\t/g, ' '); // タブをスペースに
+                minified = minified.replace(/[ ]{2,}/g, ' '); // 2個以上のスペースを1個に
+
+                // --- ステップ2: 保護 ---
+                
+                const protectedParts = [];
+                const placeholder = (index) => `__PROTECTED_${index}__`;
+
+                // 保護関数
+                const protect = (regex) => {
+                    minified = minified.replace(regex, (match) => {
+                        protectedParts.push(match);
+                        return placeholder(protectedParts.length - 1);
+                    });
+                };
+
+                // 2a. <style> と <script> タグ
+                // (ステップ1で中のコメントが消えている可能性あり)
+                protect(/<style[\s\S]*?<\/style>/gi);
+                protect(/<script[\s\S]*?<\/script>/gi);
+                
+                // 2b. 破壊されると困る属性 (id, href, style)
+                // ダブルクォートの場合
+                protect(/\s+(id|href|style)\s*=\s*"[^"]*"/gi);
+                // シングルクォートの場合
+                protect(/\s+(id|href|style)\s*=\s*'[^']*'/gi);
+
+                // --- ステップ3: 小数点丸め (保護後) ---
+                
+                const digitsInt = parseInt(digits, 10);
+                if (!isNaN(digitsInt) && digitsInt >= 0) {
+                    try {
+                        // 正規表現: オプションのマイナス記号 + 数字 + ドット + 数字
+                        // (変更) (?![eE]) を追加し、科学技術計算表記 (e.g., 1.23e-5) を除外
+                        minified = minified.replace(/([-+]?\d+\.\d+)(?![eE])/g, (match) => {
+                            const num = parseFloat(match);
+                            if (isNaN(num)) return match; // パース失敗時はそのまま
+                            return String(parseFloat(num.toFixed(digitsInt)));
+                        });
+                    } catch (e) {
+                        console.error("Failed to round decimals during minify:", e);
+                        // エラーが発生した場合は、このステップをスキップして続行
+                    }
+                }
+
+                // --- ステップ4: 復元 ---
+                
+                // プレースホルダーを元の保護した内容に戻す
+                for (let i = protectedParts.length - 1; i >= 0; i--) {
+                    // $& は マッチした文字列全体 を参照する
+                    minified = minified.replace(placeholder(i), () => protectedParts[i]);
+                }
+
                 return minified.trim();
             }
+
 
             /**
              * HEXコードを明るくする関数
@@ -832,7 +933,9 @@
                 minimizeCheckbox.addEventListener('change', () => {
                     if (minimizeCheckbox.checked) {
                         originalSvgContent = editor.value;
-                        editor.value = minifySvg(originalSvgContent);
+                        // (変更) decimalPlacesInput.value から桁数を取得
+                        const digits = decimalPlacesInput.value; 
+                        editor.value = minifySvg(originalSvgContent, digits); // (変更) 桁数を渡す
                         editor.readOnly = true;
                     } else {
                         editor.value = originalSvgContent;
@@ -841,6 +944,16 @@
                     // 状態変更後に文字色を更新
                     updateEditorTextColorBasedOnState(); 
                     renderPreview();
+                });
+
+                // (変更) 桁数入力が変更されたとき、最小化がチェックされていれば再実行
+                decimalPlacesInput.addEventListener('input', () => {
+                    if (minimizeCheckbox.checked) {
+                        // (変更) decimalPlacesInput.value から桁数を取得
+                        const digits = decimalPlacesInput.value;
+                        editor.value = minifySvg(originalSvgContent, digits);
+                        renderPreview(); // プレビューを更新
+                    }
                 });
             }
 
@@ -990,6 +1103,5 @@
 
 </body>
 </html>
-
 
 
