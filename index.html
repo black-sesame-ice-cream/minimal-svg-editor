@@ -61,15 +61,15 @@
         .preview-input:focus {
             box-shadow: 0 0 0 2px var(--tw-ring-color, #3B82F6); /* focus:ring-2 focus:ring-blue-500 */
         }
-        /* 明るい背景用の入力スタイル (デフォルト) */
+        /* 明るい背景用の入力スタイル */
         .preview-input-light {
-            background-color: #E5E7EB; /* bg-gray-200 */
-            color: #1F2937; /* text-gray-800 */
+            background-color: #d8d8d8;
+            color: #282828; 
         }
         /* 暗い背景用の入力スタイル */
         .preview-input-dark {
-            background-color: #374151; /* bg-gray-700 */
-            color: #F9FAFB; /* text-gray-100 */
+            background-color: #282828;
+            color: #d8d8d8;
         }
         .github-icon-link {position: fixed; top: 4px; right: 4px; z-index: 999;}
         .github-icon-link img {width: 32px; height: 32px;}
@@ -125,7 +125,7 @@
                     <!-- 補助線カラーピッカー -->
                     <div class="flex items-center space-x-2">
                         <label for="grid-color-picker" id="grid-color-label" class="text-gray-600 text-sm font-medium">線色</label>
-                        <input type="color" id="grid-color-picker" title="補助線と枠線の色を選択" value="#FFFFFF">
+                        <input type="color" id="grid-color-picker" title="補助線と枠線の色を選択" value="#eeeeee">
                     </div>
                     <!-- 補助線コントロール -->
                     <div class="flex items-center space-x-2">
@@ -156,11 +156,15 @@
                     </div>
                 </div>
                 
-                <!-- プレビュー本体 (変更) flex-grow を追加し、高さを確保 -->
+                <!-- プレビュー本体 flex-grow を追加し、高さを確保 -->
                 <div id="preview" class="w-full h-full p-2 transition-colors duration-150 flex-grow">
                     <!-- パン・ズーム用のコンテナ (transform-origin: 0 0) -->
                     <div id="svg-container" style="width: 100%; height: 100%; transform-origin: 0 0;">
-                        <!-- ここにSVGがレンダリングされます -->
+                        <!-- ユーザーSVG専用のラッパーを追加 -->
+                        <div id="user-svg-wrapper" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;">
+                            <!-- ここにSVGがレンダリングされます -->
+                        </div>
+                        <!-- gridSvg は JS によってここに追加されます -->
                     </div>
                 </div>
             </div>
@@ -183,13 +187,13 @@
                     <!-- 文字色 -->
                     <div class="flex items-center space-x-2">
                         <label for="text-color-picker" class="text-gray-300 text-sm font-medium">文字</label>
-                        <input type="color" id="text-color-picker" title="文字色を選択" value="#FFFFFF">
+                        <input type="color" id="text-color-picker" title="文字色を選択" value="#eeeeee">
                     </div>
                     <!-- 文字サイズ -->
                     <div class="flex items-center space-x-2">
                         <label for="font-size-input" class="text-gray-300 text-sm font-medium">サイズ</label>
                         <input type="number" id="font-size-input" min="8" max="64" value="14"
-                               class="w-14 p-1.5 rounded-md bg-gray-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               class="w-14 preview-input preview-input-light"
                                title="フォントサイズ (8-64)">
                     </div>
                     <!-- SVG読み込みボタン -->
@@ -240,35 +244,53 @@
     </div>
 
     <a href="https://github.com/black-sesame-ice-cream/minimal-svg-editor" target="_blank" rel="noopener noreferrer" class="github-icon-link" title="View on GitHub">
-        <img src="images/github-icon.svg" alt="GitHub" />
+        <img src="/images/github-icon.svg" alt="GitHub" />
     </a>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+
+            // --- Constants ---
+            const MIN_PANEL_SIZE = 200;
+            const GRID_MAX_DIVISIONS = 32;
+            const FONT_MIN_SIZE = 8;
+            const FONT_MAX_SIZE = 64;
+            const FONT_DEFAULT_SIZE = 14;
+            const PAN_ZOOM_STEP = 0.1;
+            const PAN_ZOOM_MIN = 0.1;
+
+            // --- State Variables ---
             let scale = 1.0;
             let translateX = 0;
             let translateY = 0;
             let isPanning = false;
             let panStartX = 0;
             let panStartY = 0;
+            let originalSvgContent = ''; // 最小化前のSVGを保持
+            let isResizing = false;
 
+            // --- DOM Elements ---
             const editor = document.getElementById('svg-editor');
             const preview = document.getElementById('preview');
             const svgContainer = document.getElementById('svg-container');
+            const userSvgWrapper = document.getElementById('user-svg-wrapper'); 
+            const resizer = document.getElementById('resizer');
             
+            // Editor Controls
+            const editorContainer = document.getElementById('editor-container');
+            const controlBar = document.getElementById('control-bar');
             const bgPicker = document.getElementById('bg-color-picker');
             const textColorPicker = document.getElementById('text-color-picker');
             const fontSizeInput = document.getElementById('font-size-input');
-            const controlBar = document.getElementById('control-bar');
-            const editorContainer = document.getElementById('editor-container');
-
+            const loadButton = document.getElementById('load-svg-button');
+            const fileInput = document.getElementById('svg-file-input');
+            const saveButton = document.getElementById('save-svg-button');
             const minimizeCheckbox = document.getElementById('minimize-svg-checkbox');
-            let originalSvgContent = ''; // 最小化前のSVGを保持
 
+            // Preview Controls
             const previewContainer = document.getElementById('preview-container');
             const previewControlBar = document.getElementById('preview-control-bar');
             const previewBgPicker = document.getElementById('preview-bg-color-picker');
-            
             const gridColsInput = document.getElementById('grid-cols-input');
             const gridRowsInput = document.getElementById('grid-rows-input');
             const gridZSelect = document.getElementById('grid-z-select');
@@ -277,22 +299,20 @@
             // 補助線表示用のSVG要素を作成
             const gridSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
             gridSvg.id = 'preview-grid-svg';
-            gridSvg.style.position = 'absolute';
-            gridSvg.style.top = '0';
-            gridSvg.style.left = '0';
-            gridSvg.style.width = '100%';
-            gridSvg.style.height = '100%';
-            gridSvg.style.pointerEvents = 'none'; // グリッドが操作を妨害しないように
+            Object.assign(gridSvg.style, {
+                position: 'absolute',
+                top: '0',
+                left: '0',
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none' // グリッドが操作を妨害しないように
+            });
             svgContainer.appendChild(gridSvg); 
 
-            const zoomInBtn = document.getElementById('zoom-in-btn');
-            const zoomOutBtn = document.getElementById('zoom-out-btn');
-            const zoomResetBtn = document.getElementById('zoom-reset-btn');
+            // --- Utility Functions ---
 
             /**
              * SVG文字列からコメントとタグ間の余分な空白・改行を削除します。
-             * @param {string} svgString - 元のSVG文字列
-             * @returns {string} - 最小化されたSVG文字列
              */
             function minifySvg(svgString) {
                 if (typeof svgString !== 'string') return '';
@@ -303,135 +323,275 @@
                 return minified.trim();
             }
 
-            function applyPanZoom() {
-                svgContainer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+            /**
+             * HEXコードを明るくする関数
+             */
+            function lightenHexColor(hex, percent) {
+                let r = parseInt(hex.slice(1, 3), 16);
+                let g = parseInt(hex.slice(3, 5), 16);
+                let b = parseInt(hex.slice(5, 7), 16);
+                r = Math.min(255, Math.floor(r + (255 - r) * (percent / 100)));
+                g = Math.min(255, Math.floor(g + (255 - g) * (percent / 100)));
+                b = Math.min(255, Math.floor(b + (255 - b) * (percent / 100)));
+                const rHex = r.toString(16).padStart(2, '0');
+                const gHex = g.toString(16).padStart(2, '0');
+                const bHex = b.toString(16).padStart(2, '0');
+                return `#${rHex}${gHex}${bHex}`;
             }
 
-            // SVGを更新する関数 
-            function updatePreview() {
-                let svgCode = editor.value;
-                
-                let viewBoxValue = null;
-                let preserveAspectRatioValue = null;
-                let vbWidth = null;
-                let vbHeight = null;
-                let vbParts = null; 
-                let newViewBoxValue = null; 
+            /**
+             * HEXカラーコードを指定された不透明度（アルファ）のRGBA文字列に変換します。
+             */
+            function hexToRgba(hex, alpha) {
+                let shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+                hex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
 
-                let svgTagMatch = svgCode.match(/<svg([^>]*)>/i); 
+                let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                if (!result) return null; // 不正なHEXコード
 
-                if (svgTagMatch) {
-                    const svgTagAttributes = svgTagMatch[1]; 
+                const r = parseInt(result[1], 16);
+                const g = parseInt(result[2], 16);
+                const b = parseInt(result[3], 16);
+                return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            }
 
-                    const viewBoxMatch = svgTagAttributes.match(/viewBox="([^"]+)"/i);
-                    if (viewBoxMatch) {
-                        viewBoxValue = viewBoxMatch[1];
-                    }
+            // --- Theme Functions ---
 
-                    const preserveAspectRatioMatch = svgTagAttributes.match(/preserveAspectRatio="([^"]+)"/i);
-                    if (preserveAspectRatioMatch) {
-                        preserveAspectRatioValue = preserveAspectRatioMatch[1];
-                    }
-
-                    if (!viewBoxValue) {
-                        const widthMatch = svgTagAttributes.match(/width="([^"]+)"/i);
-                        const heightMatch = svgTagAttributes.match(/height="([^"]+)"/i);
-
-                        if (widthMatch && /^[0-9.]+p?x?$/.test(widthMatch[1])) {
-                            vbWidth = parseFloat(widthMatch[1]);
-                        }
-                        if (heightMatch && /^[0-9.]+p?x?$/.test(heightMatch[1])) {
-                            vbHeight = parseFloat(heightMatch[1]);
-                        }
-                        
-                        if (vbWidth && vbHeight) {
-                            viewBoxValue = `0 0 ${vbWidth} ${vbHeight}`;
-                        }
-                    }
-                    
-                    if (viewBoxValue) {
-                        vbParts = viewBoxValue.split(' ').map(Number);
-                        if (vbParts.length === 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3])) {
-                            const [vbX, vbY, vbWidth, vbHeight] = vbParts;
-                            const newWidth = vbWidth * 2; 
-                            const newHeight = vbHeight * 2;
-                            const newX = vbX - (vbWidth * 0.5); 
-                            const newY = vbY - (vbHeight * 0.5); 
-                            newViewBoxValue = `${newX} ${newY} ${newWidth} ${newHeight}`;
-                        } else {
-                            viewBoxValue = null; 
-                            vbParts = null;
-                        }
-                    }
-
-                    let newAttributes = svgTagAttributes;
-                    
-                    newAttributes = newAttributes.replace(/width="[^"]+"/i, '');
-                    newAttributes = newAttributes.replace(/height="[^"]+"/i, '');
-
-                    if (newViewBoxValue) { 
-                        if (viewBoxMatch) { 
-                            newAttributes = newAttributes.replace(/viewBox="[^"]+"/i, `viewBox="${newViewBoxValue}"`);
-                        } else { 
-                            newAttributes += ` viewBox="${newViewBoxValue}"`;
-                        }
-                    } else if (viewBoxValue) {
-                         if (viewBoxMatch) {
-                            newAttributes = newAttributes.replace(/viewBox="[^"]+"/i, `viewBox="${viewBoxValue}"`);
-                        } else {
-                            newAttributes += ` viewBox="${viewBoxValue}"`;
-                        }
-                    }
-                    
-                    if (viewBoxValue && !preserveAspectRatioMatch) { 
-                        preserveAspectRatioValue = 'xMidYMid meet'; 
-                        newAttributes += ` preserveAspectRatio="${preserveAspectRatioValue}"`;
-                    }
-                    
-                    svgCode = svgCode.replace(/<svg[^>]*>/i, `<svg${newAttributes}>`);
+            /**
+             * パネル（エディタまたはプレビュー）のテーマ（背景色、文字色、入力欄スタイル）を設定します。
+             * @param {HTMLElement} container - 全体コンテナ (e.g., editorContainer)
+             * @param {HTMLElement} controlBar - コントロールバー (e.g., controlBar)
+             * @param {string} color - ベースとなるHEXカラーコード
+             * @param {string} inputSelector - スタイルを適用する入力欄のCSSセレクタ
+             * @param {string} labelSelector - スタイルを適用するラベルのCSSセレクタ
+             * @param {string} baseElementStyleProp - ベース要素に適用するスタイルプロパティ ('backgroundColor' or 'color')
+             * @param {HTMLElement} [baseElement=null] - ベースとなる要素 (e.g., editor, preview)
+             */
+            function setPanelTheme(container, controlBar, color, inputSelector, labelSelector, baseElementStyleProp, baseElement = null) {
+                if (baseElement) {
+                    baseElement.style[baseElementStyleProp] = color;
                 }
 
-                svgContainer.innerHTML = svgCode; 
-                svgContainer.appendChild(gridSvg); 
+                try {
+                    const lighterColor = lightenHexColor(color, 20);
+                    controlBar.style.backgroundColor = lighterColor;
+                    container.style.backgroundColor = lighterColor;
 
-                const svgElement = svgContainer.querySelector('svg:not(#preview-grid-svg)'); 
+                    const labels = controlBar.querySelectorAll(labelSelector);
+                    const controls = controlBar.querySelectorAll(inputSelector); 
+
+                    let r = parseInt(lighterColor.slice(1, 3), 16);
+                    let g = parseInt(lighterColor.slice(3, 5), 16);
+                    let b = parseInt(lighterColor.slice(5, 7), 16);
+                    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+                    const [labelLight, labelDark] = (labelSelector === '#preview-control-bar label') 
+                        ? ['text-gray-700', 'text-gray-100'] 
+                        : ['text-gray-700', 'text-gray-300'];
+
+                    labels.forEach(label => {
+                        label.classList.remove(labelLight, labelDark); 
+                        label.classList.add(brightness < 128 ? labelDark : labelLight); 
+                    });
+
+                    controls.forEach(control => {
+                        control.classList.remove('preview-input-light', 'preview-input-dark');
+                        control.classList.add(brightness < 128 ? 'preview-input-dark' : 'preview-input-light');
+                    });
+
+                } catch (e) {
+                    console.error("Failed to apply theme color: ", e);
+                    controlBar.style.backgroundColor = "#f3f4f6"; 
+                    container.style.backgroundColor = "#f3f4f6";
+                }
+            }
+
+            function setEditorBackground(color) {
+                setPanelTheme(editorContainer, controlBar, color, 
+                    '#control-bar .preview-input', '#control-bar label', 
+                    'backgroundColor', editor);
+            }
+
+            function setPreviewBackground(color) {
+                setPanelTheme(previewContainer, previewControlBar, color, 
+                    '#preview-control-bar .preview-input, #preview-control-bar .zoom-btn', '#preview-control-bar label', 
+                    'backgroundColor', preview);
+            }
+
+            function setEditorTextColor(color) {
+                editor.style.color = color;
+            }
+
+            // (追加 2) 状態に応じてエディタ文字色を更新する共通関数
+            /**
+             * 現在の状態 (最小化チェック) に応じてエディタの文字色を更新します。
+             */
+            function updateEditorTextColorBasedOnState() {
+                const color = textColorPicker.value;
+                if (minimizeCheckbox.checked) {
+                    try {
+                        // 最小化中は半透明にする
+                        editor.style.color = hexToRgba(color, 0.4); 
+                    } catch (err) {
+                        console.error("Failed to apply rgba color on minimize:", err);
+                        editor.style.color = color; // フォールバック
+                    }
+                } else {
+                    // 通常時はそのままの色
+                    setEditorTextColor(color);
+                }
+            }
+
+
+            function setEditorFontSize(size) {
+                const safeSize = parseInt(size, 10);
+                if (safeSize >= FONT_MIN_SIZE && safeSize <= FONT_MAX_SIZE) {
+                    editor.style.fontSize = `${safeSize}px`;
+                } else if (!safeSize) {
+                     editor.style.fontSize = `${FONT_DEFAULT_SIZE}px`; // 空の場合のデフォルト
+                }
+            }
+
+            // --- Preview Rendering ---
+
+            /**
+             * SVGコードを解析し、viewBoxやpreserveAspectRatioなどの属性情報を抽出・計算します。
+             */
+            function parseSvgAttributes(svgCode) {
+                const attrs = {
+                    svgTagMatch: null,
+                    viewBoxValue: null,
+                    preserveAspectRatioValue: null,
+                    vbParts: null,
+                    newViewBoxValue: null
+                };
+
+                attrs.svgTagMatch = svgCode.match(/<svg([^>]*)>/i);
+                if (!attrs.svgTagMatch) return attrs;
+
+                const svgTagAttributes = attrs.svgTagMatch[1];
+                const viewBoxMatch = svgTagAttributes.match(/viewBox="([^"]+)"/i);
+                if (viewBoxMatch) {
+                    attrs.viewBoxValue = viewBoxMatch[1];
+                }
+
+                const preserveAspectRatioMatch = svgTagAttributes.match(/preserveAspectRatio="([^"]+)"/i);
+                if (preserveAspectRatioMatch) {
+                    attrs.preserveAspectRatioValue = preserveAspectRatioMatch[1];
+                }
+
+                // viewBoxがない場合、width/heightから生成を試みる
+                if (!attrs.viewBoxValue) {
+                    const widthMatch = svgTagAttributes.match(/width="([^"]+)"/i);
+                    const heightMatch = svgTagAttributes.match(/height="([^"]+)"/i);
+                    let vbWidth = null;
+                    let vbHeight = null;
+
+                    if (widthMatch && /^[0-9.]+p?x?$/.test(widthMatch[1])) {
+                        vbWidth = parseFloat(widthMatch[1]);
+                    }
+                    if (heightMatch && /^[0-9.]+p?x?$/.test(heightMatch[1])) {
+                        vbHeight = parseFloat(heightMatch[1]);
+                    }
+                    
+                    if (vbWidth && vbHeight) {
+                        attrs.viewBoxValue = `0 0 ${vbWidth} ${vbHeight}`;
+                    }
+                }
                 
+                // viewBoxをグリッド表示用に拡張
+                if (attrs.viewBoxValue) {
+                    attrs.vbParts = attrs.viewBoxValue.split(' ').map(Number);
+                    if (attrs.vbParts.length === 4 && !isNaN(attrs.vbParts[2]) && !isNaN(attrs.vbParts[3])) {
+                        const [vbX, vbY, vbWidth, vbHeight] = attrs.vbParts;
+                        const newWidth = vbWidth * 2; 
+                        const newHeight = vbHeight * 2;
+                        const newX = vbX - (vbWidth * 0.5); 
+                        const newY = vbY - (vbHeight * 0.5); 
+                        attrs.newViewBoxValue = `${newX} ${newY} ${newWidth} ${newHeight}`;
+                    } else {
+                        attrs.viewBoxValue = null; 
+                        attrs.vbParts = null;
+                    }
+                }
+                
+                return attrs;
+            }
+
+            /**
+             * 解析した属性に基づいて、SVGコードの<svg>タグを更新します。
+             */
+            function updateSvgAttributes(svgCode, attrs) {
+                if (!attrs.svgTagMatch) return svgCode;
+
+                let newAttributes = attrs.svgTagMatch[1];
+                
+                // width/height属性を削除
+                newAttributes = newAttributes.replace(/width="[^"]+"/i, '');
+                newAttributes = newAttributes.replace(/height="[^"]+"/i, '');
+
+                // 拡張viewBoxを適用
+                if (attrs.newViewBoxValue) { 
+                    if (attrs.svgTagMatch[1].match(/viewBox="[^"]+"/i)) { 
+                        newAttributes = newAttributes.replace(/viewBox="[^"]+"/i, `viewBox="${attrs.newViewBoxValue}"`);
+                    } else { 
+                        newAttributes += ` viewBox="${attrs.newViewBoxValue}"`;
+                    }
+                } else if (attrs.viewBoxValue) {
+                     if (attrs.svgTagMatch[1].match(/viewBox="[^"]+"/i)) {
+                        newAttributes = newAttributes.replace(/viewBox="[^"]+"/i, `viewBox="${attrs.viewBoxValue}"`);
+                    } else {
+                        newAttributes += ` viewBox="${attrs.viewBoxValue}"`;
+                    }
+                }
+                
+                // viewBoxがあり、preserveAspectRatioがない場合、デフォルトを追加
+                if (attrs.viewBoxValue && !attrs.preserveAspectRatioValue) { 
+                    attrs.preserveAspectRatioValue = 'xMidYMid meet'; 
+                    newAttributes += ` preserveAspectRatio="${attrs.preserveAspectRatioValue}"`;
+                }
+                
+                return svgCode.replace(/<svg[^>]*>/i, `<svg${newAttributes}>`);
+            }
+
+            /**
+             * プレビューに補助線グリッドを描画します。
+             */
+            function drawGrid(svgElement, attrs) {
                 if (!svgElement) {
                     gridSvg.innerHTML = '';
                     return;
                 }
-                
-                svgElement.style.width = '100%';
-                svgElement.style.height = '100%';
+
+                Object.assign(svgElement.style, {
+                    width: '100%',
+                    height: '100%',
+                });
                 gridSvg.style.width = '100%';
                 gridSvg.style.height = '100%';
 
                 try {
                     const gridColor = gridColorPicker.value; 
-
-                    svgElement.style.position = 'absolute'; 
-                    svgElement.style.top = '0';
-                    svgElement.style.left = '0';
                     
-                    if (!viewBoxValue || !vbParts || !newViewBoxValue) { 
+                    if (!attrs.viewBoxValue || !attrs.vbParts || !attrs.newViewBoxValue) { 
                         gridSvg.innerHTML = ''; 
                         return;
                     }
 
-                    const [vbX, vbY, vbWidth, vbHeight] = vbParts;
+                    const [vbX, vbY, vbWidth, vbHeight] = attrs.vbParts;
 
-                    gridSvg.setAttribute('viewBox', newViewBoxValue);
+                    gridSvg.setAttribute('viewBox', attrs.newViewBoxValue);
                     
-                    if (preserveAspectRatioValue) {
-                        gridSvg.setAttribute('preserveAspectRatio', preserveAspectRatioValue);
-                        svgElement.setAttribute('preserveAspectRatio', preserveAspectRatioValue); 
+                    if (attrs.preserveAspectRatioValue) {
+                        gridSvg.setAttribute('preserveAspectRatio', attrs.preserveAspectRatioValue);
+                        svgElement.setAttribute('preserveAspectRatio', attrs.preserveAspectRatioValue); 
                     } else {
                         gridSvg.removeAttribute('preserveAspectRatio'); 
                         svgElement.removeAttribute('preserveAspectRatio');
                     }
 
-                    const cols = Math.max(1, Math.min(32, parseInt(gridColsInput.value, 10) || 1));
-                    const rows = Math.max(1, Math.min(32, parseInt(gridRowsInput.value, 10) || 1));
+                    const cols = Math.max(1, Math.min(GRID_MAX_DIVISIONS, parseInt(gridColsInput.value, 10) || 1));
+                    const rows = Math.max(1, Math.min(GRID_MAX_DIVISIONS, parseInt(gridRowsInput.value, 10) || 1));
                     const zIndexOption = gridZSelect.value;
                     
                     let pathD = '';
@@ -452,10 +612,10 @@
                     gridSvg.innerHTML = `<path d="${borderPathD} ${pathD}" stroke="${gridColor}" stroke-width="${strokeWidth}" fill="none" vector-effect="non-scaling-stroke" />`;
 
                     if (zIndexOption === 'back') {
-                        svgElement.style.zIndex = '10';
+                        userSvgWrapper.style.zIndex = '10';
                         gridSvg.style.zIndex = '0';
                     } else {
-                        svgElement.style.zIndex = '0';
+                        userSvgWrapper.style.zIndex = '0';
                         gridSvg.style.zIndex = '10';
                     }
 
@@ -464,8 +624,72 @@
                     gridSvg.innerHTML = ''; 
                 }
             }
+            
+            /**
+             * SVGを解析、更新、描画するメイン関数
+             */
+            function renderPreview() {
+                const svgCodeRaw = editor.value;
+                const attrs = parseSvgAttributes(svgCodeRaw);
+                const svgCodeUpdated = updateSvgAttributes(svgCodeRaw, attrs);
 
-            // コード補完機能 
+                userSvgWrapper.innerHTML = svgCodeUpdated; 
+                const svgElement = userSvgWrapper.querySelector('svg'); 
+                drawGrid(svgElement, attrs);
+            }
+
+            // --- Pan & Zoom ---
+
+            function applyPanZoom() {
+                svgContainer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+            }
+
+            function initPanZoom() {
+                // ホイールズーム (マウスカーソル中心)
+                preview.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const delta = e.deltaY > 0 ? -PAN_ZOOM_STEP : PAN_ZOOM_STEP;
+                    const newScale = parseFloat(Math.max(PAN_ZOOM_MIN, scale + delta).toFixed(2));
+                    
+                    const rect = preview.getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left; 
+                    const mouseY = e.clientY - rect.top; 
+
+                    const targetX = (mouseX - translateX) / scale;
+                    const targetY = (mouseY - translateY) / scale;
+                    
+                    translateX = mouseX - targetX * newScale;
+                    translateY = mouseY - targetY * newScale;
+                    scale = newScale;
+                    
+                    applyPanZoom();
+                });
+
+                // パン (ドラッグ)
+                preview.addEventListener('mousedown', (e) => {
+                    if (e.button !== 0) return;
+                    isPanning = true;
+                    panStartX = e.clientX - translateX;
+                    panStartY = e.clientY - translateY;
+                    preview.style.cursor = 'grabbing';
+                });
+                preview.addEventListener('mousemove', (e) => {
+                    if (!isPanning) return;
+                    translateX = e.clientX - panStartX;
+                    translateY = e.clientY - panStartY;
+                    applyPanZoom();
+                });
+                preview.addEventListener('mouseup', () => {
+                    isPanning = false;
+                    preview.style.cursor = 'default';
+                });
+                preview.addEventListener('mouseleave', () => {
+                    isPanning = false;
+                    preview.style.cursor = 'default';
+                });
+            }
+
+            // --- Snippets ---
             const snippets = {
                 '<svg': '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">\n\t\n</svg>',
                 '<r': '<rect x="" y="" width="" height="" fill="#fff" stroke="#000" stroke-width=""/>',
@@ -484,448 +708,213 @@
                 '<use': '<use href="#id" x="" y=""/>'
             };
 
-            editor.addEventListener('keydown', (e) => {
-                if (editor.readOnly) return;
+            function initSnippets() {
+                editor.addEventListener('keydown', (e) => {
+                    if (editor.readOnly) return;
 
-                if (e.key === 'Tab' || e.key === 'Enter') {
-                    const start = editor.selectionStart;
-                    const textBefore = editor.value.substring(0, start);
-                    let triggerKey = null;
-                    for (const key of Object.keys(snippets)) {
-                        if (textBefore.endsWith(key)) {
-                            triggerKey = key;
-                            break; 
+                    if (e.key === 'Tab' || e.key === 'Enter') {
+                        const start = editor.selectionStart;
+                        const textBefore = editor.value.substring(0, start);
+                        let triggerKey = Object.keys(snippets).find(key => textBefore.endsWith(key));
+
+                        if (triggerKey) {
+                            e.preventDefault(); 
+                            const snippetValue = snippets[triggerKey];
+                            const newTextBefore = textBefore.substring(0, textBefore.length - triggerKey.length);
+                            const textAfter = editor.value.substring(start);
+                            
+                            editor.value = newTextBefore + snippetValue + textAfter;
+
+                            const firstQuoteIndex = snippetValue.indexOf('""');
+                            let newCursorPos = (firstQuoteIndex !== -1)
+                                ? newTextBefore.length + firstQuoteIndex + 1
+                                : newTextBefore.length + snippetValue.length;
+                                
+                            editor.selectionStart = editor.selectionEnd = newCursorPos;
+                            renderPreview(); 
+                        } else if (e.key === 'Tab') {
+                            e.preventDefault();
+                            const end = editor.selectionEnd;
+                            editor.value = editor.value.substring(0, start) + '\t' + editor.value.substring(end);
+                            editor.selectionStart = editor.selectionEnd = start + 1;
+                            renderPreview();
                         }
                     }
+                });
+            }
 
-                    if (triggerKey) {
-                        e.preventDefault(); 
-                        const snippetValue = snippets[triggerKey];
-                        const newTextBefore = textBefore.substring(0, textBefore.length - triggerKey.length);
-                        const textAfter = editor.value.substring(start);
-                        
-                        editor.value = newTextBefore + snippetValue + textAfter;
+            // --- Event Listeners Initialization ---
 
-                        const firstQuoteIndex = snippetValue.indexOf('""');
-                        let newCursorPos;
-                        if (firstQuoteIndex !== -1) {
-                            newCursorPos = newTextBefore.length + firstQuoteIndex + 1;
-                        } else {
-                            newCursorPos = newTextBefore.length + snippetValue.length; 
-                        }
-                        editor.selectionStart = editor.selectionEnd = newCursorPos;
-                        updatePreview(); 
-                    } else if (e.key === 'Tab') {
-                        e.preventDefault();
-                        const end = editor.selectionEnd;
-                        editor.value = editor.value.substring(0, start) + '\t' + editor.value.substring(end);
-                        editor.selectionStart = editor.selectionEnd = start + 1;
-                        updatePreview();
+            function initEditorControls() {
+                editor.addEventListener('input', () => {
+                    if (editor.readOnly) return;
+                    renderPreview();
+                });
+
+                bgPicker.addEventListener('input', (e) => setEditorBackground(e.target.value));
+
+                textColorPicker.addEventListener('input', updateEditorTextColorBasedOnState);
+
+                fontSizeInput.addEventListener('input', (e) => setEditorFontSize(e.target.value));
+
+                minimizeCheckbox.addEventListener('change', () => {
+                    if (minimizeCheckbox.checked) {
+                        originalSvgContent = editor.value;
+                        editor.value = minifySvg(originalSvgContent);
+                        editor.readOnly = true;
+                    } else {
+                        editor.value = originalSvgContent;
+                        editor.readOnly = false;
                     }
-                }
-            });
-
-            editor.addEventListener('input', () => {
-                if (editor.readOnly) return;
-                updatePreview();
-            });
-            
-            // ページ読み込み時に最初のプレビューを実行
-            updatePreview();
-
-            /**
-             * HEXコードを明るくする関数
-             * @param {string} hex - #RRGGBB 形式のHEXカラーコード
-             * @param {number} percent - 明るくする割合 (例: 20 は 20% 明るくする)
-             * @returns {string} - 明るくした #RRGGBB カラーコード
-             */
-            function lightenHexColor(hex, percent) {
-                let r = parseInt(hex.slice(1, 3), 16);
-                let g = parseInt(hex.slice(3, 5), 16);
-                let b = parseInt(hex.slice(5, 7), 16);
-                r = Math.min(255, Math.floor(r + (255 - r) * (percent / 100)));
-                g = Math.min(255, Math.floor(g + (255 - g) * (percent / 100)));
-                b = Math.min(255, Math.floor(b + (255 - b) * (percent / 100)));
-                const rHex = r.toString(16).padStart(2, '0');
-                const gHex = g.toString(16).padStart(2, '0');
-                const bHex = b.toString(16).padStart(2, '0');
-                return `#${rHex}${gHex}${bHex}`;
+                    // 状態変更後に文字色を更新
+                    updateEditorTextColorBasedOnState(); 
+                    renderPreview();
+                });
             }
 
-            /**
-             * HEXコードを暗くする関数
-             * @param {string} hex - #RRGGBB 形式のHEXカラーコード
-             * @param {number} percent - 暗くする割合 (例: 20 は 20% 暗くする)
-             * @returns {string} - 暗くした #RRGGBB カラーコード
-             */
-            function darkenHexColor(hex, percent) {
-                let r = parseInt(hex.slice(1, 3), 16);
-                let g = parseInt(hex.slice(3, 5), 16);
-                let b = parseInt(hex.slice(5, 7), 16);
-                r = Math.max(0, Math.floor(r * (1 - percent / 100)));
-                g = Math.max(0, Math.floor(g * (1 - percent / 100)));
-                b = Math.max(0, Math.floor(b * (1 - percent / 100)));
-                const rHex = r.toString(16).padStart(2, '0');
-                const gHex = g.toString(16).padStart(2, '0');
-                const bHex = b.toString(16).padStart(2, '0');
-                return `#${rHex}${gHex}${bHex}`;
+            function initPreviewControls() {
+                previewBgPicker.addEventListener('input', (e) => {
+                    setPreviewBackground(e.target.value);
+                    renderPreview(); 
+                });
+                gridColsInput.addEventListener('input', renderPreview);
+                gridRowsInput.addEventListener('input', renderPreview);
+                gridZSelect.addEventListener('change', renderPreview);
+                gridColorPicker.addEventListener('input', renderPreview); 
             }
 
-            // 背景色とコントロールバー、座布団の色の設定
-            function setEditorBackground(color) {
-                editor.style.backgroundColor = color; 
-                try {
-                    const lighterColor = lightenHexColor(color, 20);
-                    controlBar.style.backgroundColor = lighterColor;
-                    editorContainer.style.backgroundColor = lighterColor;
+            function initFileHandlers() {
+                loadButton.addEventListener('click', () => fileInput.click());
 
-                    const labels = controlBar.querySelectorAll('label');
-                    let r = parseInt(lighterColor.slice(1, 3), 16);
-                    let g = parseInt(lighterColor.slice(3, 5), 16);
-                    let b = parseInt(lighterColor.slice(5, 7), 16);
-                    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-
-                    labels.forEach(label => {
-                        label.classList.remove('text-gray-300', 'text-gray-700'); 
-                        if (brightness < 128) { 
-                            label.classList.add('text-gray-300'); 
-                        } else { 
-                            label.classList.add('text-gray-700'); 
-                        }
-                    });
-                } catch (e) {
-                    console.error("Failed to lighten color: ", e);
-                    controlBar.style.backgroundColor = "#ffffff"; 
-                    editorContainer.style.backgroundColor = "#ffffff";
-                }
-            }
-
-            // プレビュー背景色の設定 (プレビュー本体 + 座布団/コントロールバー)
-            function setPreviewBackground(color) {
-                preview.style.backgroundColor = color; 
-                try {
-                    const lighterColor = lightenHexColor(color, 20); 
-                    previewControlBar.style.backgroundColor = lighterColor; 
-                    previewContainer.style.backgroundColor = lighterColor; 
-
-                    const labels = previewControlBar.querySelectorAll('label');
-                    const controls = previewControlBar.querySelectorAll('.preview-input, .zoom-btn'); 
-
-                    if (labels.length > 0) {
-                        let r = parseInt(lighterColor.slice(1, 3), 16);
-                        let g = parseInt(lighterColor.slice(3, 5), 16);
-                        let b = parseInt(lighterColor.slice(5, 7), 16);
-                        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-                        
-                        labels.forEach(label => {
-                            label.classList.remove('text-gray-600', 'text-gray-100'); 
-                            if (brightness < 128) { 
-                                label.classList.add('text-gray-100'); 
-                            } else { 
-                                label.classList.add('text-gray-600'); 
+                fileInput.addEventListener('change', (event) => {
+                    const file = event.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const svgContent = e.target.result;
+                            editor.value = svgContent; 
+                            
+                            if (minimizeCheckbox.checked) {
+                                minimizeCheckbox.checked = false;
+                                editor.readOnly = false;
+                                updateEditorTextColorBasedOnState(); 
                             }
-                        });
-
-                        controls.forEach(control => {
-                            control.classList.remove('preview-input-light', 'preview-input-dark');
-                            if (brightness < 128) { 
-                                control.classList.add('preview-input-dark');
-                            } else { 
-                                control.classList.add('preview-input-light');
-                            }
-                        });
+                            renderPreview(); 
+                        };
+                        reader.readAsText(file);
                     }
-                } catch (e) {
-                    console.error("Failed to lighten color: ", e); 
-                    previewControlBar.style.backgroundColor = "#f3f4f6"; 
-                    previewContainer.style.backgroundColor = "#f3f4f6";
-                }
+                    event.target.value = null; 
+                });
+                
+                saveButton.addEventListener('click', () => {
+                    const svgContent = editor.value;
+                    const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'edited.svg'; 
+                    document.body.appendChild(a); 
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                });
             }
 
-            // 文字色の設定
-            function setEditorTextColor(color) {
-                editor.style.color = color;
-            }
+            // --- Resizer ---
+            function initResizer() {
+                const parentContainer = resizer.parentElement;
 
-            // 文字サイズの設定
-            function setEditorFontSize(size) {
-                const safeSize = parseInt(size, 10);
-                if (safeSize >= 8 && safeSize <= 64) {
-                    editor.style.fontSize = `${safeSize}px`;
-                } else if (!safeSize) {
-                     editor.style.fontSize = '14px'; // 空の場合のデフォルト
-                }
-            }
+                const handleResizeStart = (e) => {
+                    isResizing = true;
+                    document.body.classList.add('resizing'); // テキスト選択無効
+                    preview.style.pointerEvents = 'none'; 
+                    e.preventDefault(); 
+                };
 
-            // イベントリスナーを設定
-            bgPicker.addEventListener('input', (e) => {
-                setEditorBackground(e.target.value);
-            });
+                const handleResizeMove = (e) => {
+                    if (!isResizing) return;
 
-            textColorPicker.addEventListener('input', (e) => {
-                if (minimizeCheckbox.checked) {
-                    try {
-                        editor.style.color = darkenHexColor(e.target.value, 20);
-                    } catch (err) {
-                        editor.style.color = e.target.value; 
+                    const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+                    const clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+                    if (clientX === 0 && clientY === 0) return; 
+
+                    const parentRect = parentContainer.getBoundingClientRect();
+                    const resizerRect = resizer.getBoundingClientRect();
+                    const isDesktop = window.innerWidth >= 768; // Tailwind md
+
+                    if (isDesktop) {
+                        // 左右リサイズ
+                        const gap = resizerRect.width;
+                        const totalWidth = parentRect.width - gap;
+                        let newPreviewWidth = clientX - parentRect.left - (gap / 2);
+
+                        if (newPreviewWidth < MIN_PANEL_SIZE) newPreviewWidth = MIN_PANEL_SIZE;
+                        
+                        const newEditorWidth = totalWidth - newPreviewWidth;
+                        if (newEditorWidth < MIN_PANEL_SIZE) {
+                            newPreviewWidth = totalWidth - MIN_PANEL_SIZE;
+                        }
+
+                        previewContainer.style.flexBasis = `${(newPreviewWidth / totalWidth) * 100}%`;
+                        editorContainer.style.flexBasis = `${(newEditorWidth / totalWidth) * 100}%`;
+
+                    } else {
+                        // 上下リサイズ
+                        const gap = resizerRect.height;
+                        const totalHeight = parentRect.height - gap;
+                        let newPreviewHeight = clientY - parentRect.top - (gap / 2);
+
+                        if (newPreviewHeight < MIN_PANEL_SIZE) newPreviewHeight = MIN_PANEL_SIZE;
+
+                        const newEditorHeight = totalHeight - newPreviewHeight;
+                        if (newEditorHeight < MIN_PANEL_SIZE) {
+                            newPreviewHeight = totalHeight - MIN_PANEL_SIZE;
+                        }
+                        
+                        previewContainer.style.flexBasis = `${(newPreviewHeight / totalHeight) * 100}%`;
+                        editorContainer.style.flexBasis = `${(newEditorHeight / totalHeight) * 100}%`;
                     }
-                } else {
-                    setEditorTextColor(e.target.value);
-                }
-            });
+                };
 
-            fontSizeInput.addEventListener('input', (e) => {
-                setEditorFontSize(e.target.value);
-            });
+                const handleResizeEnd = () => {
+                    isResizing = false;
+                    document.body.classList.remove('resizing');
+                    preview.style.pointerEvents = 'auto'; // 操作を元に戻す
+                };
 
-            // プレビュー背景色用のイベントリスナー
-            previewBgPicker.addEventListener('input', (e) => {
-                setPreviewBackground(e.target.value);
-                updatePreview(); 
-            });
+                // マウスイベント
+                resizer.addEventListener('mousedown', handleResizeStart);
+                document.addEventListener('mousemove', handleResizeMove);
+                document.addEventListener('mouseup', handleResizeEnd);
 
-            // グリッドコントロールのイベントリスナー
-            gridColsInput.addEventListener('input', updatePreview);
-            gridRowsInput.addEventListener('input', updatePreview);
-            gridZSelect.addEventListener('change', updatePreview);
-            gridColorPicker.addEventListener('input', updatePreview); 
-
-            // ズーム機能
-            if (zoomInBtn) {
-                zoomInBtn.addEventListener('click', () => {
-                    scale = parseFloat((scale + 0.1).toFixed(2));
-                    applyPanZoom();
-                });
-            }
-            if (zoomOutBtn) {
-                zoomOutBtn.addEventListener('click', () => {
-                    scale = parseFloat(Math.max(0.1, scale - 0.1).toFixed(2));
-                    applyPanZoom();
-                });
-            }
-            if (zoomResetBtn) {
-                zoomResetBtn.addEventListener('click', () => {
-                    scale = 1.0;
-                    translateX = 0;
-                    translateY = 0;
-                    applyPanZoom();
-                });
+                // タッチイベント
+                resizer.addEventListener('touchstart', handleResizeStart, { passive: false });
+                document.addEventListener('touchmove', handleResizeMove, { passive: false });
+                document.addEventListener('touchend', handleResizeEnd);
+                document.addEventListener('touchcancel', handleResizeEnd);
             }
 
-            // ホイールズーム (マウスカーソル中心)
-            preview.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                const delta = e.deltaY > 0 ? -0.1 : 0.1;
-                const newScale = parseFloat(Math.max(0.1, scale + delta).toFixed(2));
-                
-                const rect = preview.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left; 
-                const mouseY = e.clientY - rect.top; 
-
-                const targetX = (mouseX - translateX) / scale;
-                const targetY = (mouseY - translateY) / scale;
-                
-                translateX = mouseX - targetX * newScale;
-                translateY = mouseY - targetY * newScale;
-                scale = newScale;
-                
-                applyPanZoom();
-            });
-
-            // パン (ドラッグ)
-            preview.addEventListener('mousedown', (e) => {
-                if (e.button !== 0) return;
-                isPanning = true;
-                panStartX = e.clientX - translateX;
-                panStartY = e.clientY - translateY;
-                preview.style.cursor = 'grabbing';
-            });
-            preview.addEventListener('mousemove', (e) => {
-                if (!isPanning) return;
-                translateX = e.clientX - panStartX;
-                translateY = e.clientY - panStartY;
-                applyPanZoom();
-            });
-            preview.addEventListener('mouseup', () => {
-                isPanning = false;
-                preview.style.cursor = 'default';
-            });
-            preview.addEventListener('mouseleave', () => {
-                isPanning = false;
-                preview.style.cursor = 'default';
-            });
+            // --- Initialization ---
 
             // 初期スタイルの適用
             setEditorBackground(bgPicker.value);
-            setEditorTextColor(textColorPicker.value);
+            updateEditorTextColorBasedOnState(); 
             setEditorFontSize(fontSizeInput.value);
             setPreviewBackground(previewBgPicker.value); 
 
-            // SVGファイル読み込み機能
-            const loadButton = document.getElementById('load-svg-button');
-            const fileInput = document.getElementById('svg-file-input');
+            // ページ読み込み時に最初のプレビューを実行
+            renderPreview();
 
-            loadButton.addEventListener('click', () => {
-                fileInput.click(); 
-            });
-
-            fileInput.addEventListener('change', (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const svgContent = e.target.result;
-                        editor.value = svgContent; 
-                        
-                        if (minimizeCheckbox.checked) {
-                            minimizeCheckbox.checked = false;
-                            editor.readOnly = false;
-                            setEditorTextColor(textColorPicker.value); 
-                        }
-                        updatePreview(); 
-                    };
-                    reader.readAsText(file);
-                }
-                event.target.value = null; 
-            });
-            
-            // SVGファイル保存機能
-            const saveButton = document.getElementById('save-svg-button');
-
-            saveButton.addEventListener('click', () => {
-                const svgContent = editor.value;
-                const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'edited.svg'; 
-                document.body.appendChild(a); 
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            });
-            
-            // 最小化機能
-            minimizeCheckbox.addEventListener('change', () => {
-                if (minimizeCheckbox.checked) {
-                    originalSvgContent = editor.value;
-                    editor.value = minifySvg(originalSvgContent);
-                    editor.readOnly = true;
-                    try {
-                        editor.style.color = darkenHexColor(textColorPicker.value, 20);
-                    } catch (e) {
-                        editor.style.color = textColorPicker.value;
-                        console.error("Failed to darken color on minimize:", e);
-                    }
-                    updatePreview();
-                } else {
-                    editor.value = originalSvgContent;
-                    editor.readOnly = false;
-                    setEditorTextColor(textColorPicker.value);
-                    updatePreview();
-                }
-            });
-
-            // --- ここからリサイズ機能 ---
-            const resizer = document.getElementById('resizer');
-            // previewContainer と editorContainer は既に取得済み
-            const parentContainer = resizer.parentElement; // 親コンテナ (flex-col md:flex-row)
-
-            let isResizing = false;
-
-            const handleResizeStart = (e) => {
-                isResizing = true;
-                document.body.classList.add('resizing'); // テキスト選択無効
-                // プレビューエリア内の操作を無効化 (ドラッグ競合を防ぐ)
-                preview.style.pointerEvents = 'none'; 
-                e.preventDefault(); // デフォルトのドラッグ動作をキャンセル
-            };
-
-            const handleResizeMove = (e) => {
-                if (!isResizing) return;
-
-                // touchイベントとmouseイベントの座標を共通化
-                const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
-                const clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
-                if (clientX === 0 && clientY === 0) return; // 不正なイベントデータ
-
-                const parentRect = parentContainer.getBoundingClientRect();
-                const resizerRect = resizer.getBoundingClientRect();
-
-                // Tailwind の md ブレークポイント (768px)
-                const isDesktop = window.innerWidth >= 768;
-
-                if (isDesktop) {
-                    // --- 左右リサイズ (デスクトップ) ---
-                    const gap = resizerRect.width;
-                    const totalWidth = parentRect.width - gap;
-                    
-                    // 親コンテナの左端からマウスカーソルまでの相対位置
-                    let newPreviewWidth = clientX - parentRect.left;
-                    
-                    // リサイズバーの半分左にずらす
-                    newPreviewWidth -= gap / 2;
-
-                    // 最小幅 (min-width: 200px) を考慮
-                    const minWidth = 200;
-                    if (newPreviewWidth < minWidth) newPreviewWidth = minWidth;
-                    
-                    const newEditorWidth = totalWidth - newPreviewWidth;
-                    if (newEditorWidth < minWidth) {
-                        newPreviewWidth = totalWidth - minWidth;
-                    }
-
-                    // flex-basis を % で設定
-                    previewContainer.style.flexBasis = `${(newPreviewWidth / totalWidth) * 100}%`;
-                    editorContainer.style.flexBasis = `${(newEditorWidth / totalWidth) * 100}%`;
-
-                } else {
-                    // --- 上下リサイズ (モバイル) ---
-                    const gap = resizerRect.height;
-                    const totalHeight = parentRect.height - gap;
-
-                    // 親コンテナの上端からマウスカーソルまでの相対位置
-                    let newPreviewHeight = clientY - parentRect.top;
-
-                    // リサイズバーの半分上にずらす
-                    newPreviewHeight -= gap / 2;
-
-                    // 最小高さ (min-height: 200px) を考慮
-                    const minHeight = 200;
-                    if (newPreviewHeight < minHeight) newPreviewHeight = minHeight;
-
-                    const newEditorHeight = totalHeight - newPreviewHeight;
-                    if (newEditorHeight < minHeight) {
-                        newPreviewHeight = totalHeight - minHeight;
-                    }
-                    
-                    // flex-basis を % で設定
-                    previewContainer.style.flexBasis = `${(newPreviewHeight / totalHeight) * 100}%`;
-                    editorContainer.style.flexBasis = `${(newEditorHeight / totalHeight) * 100}%`;
-                }
-            };
-
-            const handleResizeEnd = () => {
-                isResizing = false;
-                document.body.classList.remove('resizing');
-                preview.style.pointerEvents = 'auto'; // 操作を元に戻す
-            };
-
-            // マウスイベント
-            resizer.addEventListener('mousedown', handleResizeStart);
-            document.addEventListener('mousemove', handleResizeMove);
-            document.addEventListener('mouseup', handleResizeEnd);
-
-            // タッチイベント
-            resizer.addEventListener('touchstart', handleResizeStart, { passive: false });
-            document.addEventListener('touchmove', handleResizeMove, { passive: false });
-            document.addEventListener('touchend', handleResizeEnd);
-            document.addEventListener('touchcancel', handleResizeEnd);
-            // --- (ここまでリサイズ機能) ---
+            // 各機能のイベントリスナーを初期化
+            initEditorControls();
+            initPreviewControls();
+            initPanZoom();
+            initFileHandlers();
+            initSnippets();
+            initResizer();
 
         });
     </script>
 
 </body>
 </html>
-
