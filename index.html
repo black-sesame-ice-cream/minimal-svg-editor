@@ -71,114 +71,153 @@
             background-color: #374151; /* bg-gray-700 */
             color: #F9FAFB; /* text-gray-100 */
         }
-        .github-icon-link {position: fixed; top: 4px; left: 4px; z-index: 999;}
+        .github-icon-link {position: fixed; top: 4px; right: 4px; z-index: 999;}
         .github-icon-link img {width: 32px; height: 32px;}
         .github-icon-link:hover img {transform: scale(1.1);}
+
+        /* リサイズバー */
+        #resizer {
+            background-color: #000000;
+            flex-shrink: 0;
+            z-index: 50; /* 他要素より手前に */
+        }
+
+        /* モバイル (デフォルト: 上下分割) */
+        #resizer {
+            width: 100%;
+            height: 2px;
+            cursor: row-resize;
+        }
+        
+        /* デスクトップ (md以上: 左右分割) */
+        @media (min-width: 768px) {
+            #resizer {
+                width: 2px;
+                height: auto; /* flex-row の中のため auto で親の高さに */
+                cursor: col-resize;
+            }
+        }
+
+        /* リサイズ中のテキスト選択を無効化 */
+        .resizing {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
     </style>
 </head>
 <body class="bg-black flex flex-col">
 
-    <div class="flex flex-col md:flex-row flex-grow">
+    <div class="flex flex-col md:flex-row flex-grow h-full">
         
         <!-- 左側: プレビューエリア -->
-        <div id="preview-container" class="w-full md:w-1/2 h-1/2 md:h-full p-4 shadow-lg rounded-lg m-2 flex flex-col transition-colors duration-150">
-            <!-- プレビュー コントロールバー -->
-            <div id="preview-control-bar" class="flex items-center justify-start flex-wrap gap-x-4 gap-y-2 mb-2 p-2 rounded-md transition-colors duration-150">
-                <!-- プレビュー背景色 -->
-                <div class="flex items-center space-x-2">
-                    <label for="preview-bg-color-picker" id="preview-bg-label" class="text-gray-600 text-sm font-medium">背景</label>
-                    <input type="color" id="preview-bg-color-picker" title="プレビュー背景色を選択" value="#111827">
+        <div id="preview-container" class="shadow-lg flex flex-col transition-colors duration-150 flex-1 overflow-hidden" style="flex-basis: 50%; min-height: 200px; min-width: 200px;">
+            <div class="flex flex-col h-full">
+                <!-- プレビュー コントロールバー -->
+                <div id="preview-control-bar" class="flex items-center justify-start flex-wrap gap-x-4 gap-y-2 p-2 rounded-md transition-colors duration-150">
+                    <!-- プレビュー背景色 -->
+                    <div class="flex items-center space-x-2">
+                        <label for="preview-bg-color-picker" id="preview-bg-label" class="text-gray-600 text-sm font-medium">背景</label>
+                        <input type="color" id="preview-bg-color-picker" title="プレビュー背景色を選択" value="#111827">
+                    </div>
+                    <!-- 補助線カラーピッカー -->
+                    <div class="flex items-center space-x-2">
+                        <label for="grid-color-picker" id="grid-color-label" class="text-gray-600 text-sm font-medium">線色</label>
+                        <input type="color" id="grid-color-picker" title="補助線と枠線の色を選択" value="#FFFFFF">
+                    </div>
+                    <!-- 補助線コントロール -->
+                    <div class="flex items-center space-x-2">
+                        <label for="grid-cols-input" class="text-gray-600 text-sm font-medium">横分割</label>
+                        <input type="number" id="grid-cols-input" min="1" max="32" value="2"
+                               class="w-14 preview-input preview-input-light"
+                               title="横の分割数 (1-32)">
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <label for="grid-rows-input" class="text-gray-600 text-sm font-medium">縦分割</label>
+                        <input type="number" id="grid-rows-input" min="1" max="32" value="2"
+                               class="w-14 preview-input preview-input-light"
+                               title="縦の分割数 (1-32)">
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <label for="grid-z-select" class="text-gray-600 text-sm font-medium">線</label>
+                        <select id="grid-z-select" class="preview-input preview-input-light" title="補助線の前後">
+                            <option value="back">背面</option>
+                            <option value="front">前面</option>
+                        </select>
+                    </div>
+                    <!-- ズームコントロール (非表示) -->
+                    <div class="flex items-center space-x-2 hidden">
+                        <label id="preview-zoom-label" class="text-gray-600 text-sm font-medium">ズーム</label>
+                        <button id="zoom-out-btn" type="button" class="zoom-btn px-2 py-0.5 rounded-md text-lg font-bold preview-input preview-input-light" title="縮小">-</button>
+                        <button id="zoom-reset-btn" type="button" class="zoom-btn px-2 py-0.5 rounded-md text-sm preview-input preview-input-light" title="リセット">100%</button>
+                        <button id="zoom-in-btn" type="button" class="zoom-btn px-2 py-0.5 rounded-md text-lg font-bold preview-input preview-input-light" title="拡大">+</button>
+                    </div>
                 </div>
-                <!-- 補助線カラーピッカー -->
-                <div class="flex items-center space-x-2">
-                    <label for="grid-color-picker" id="grid-color-label" class="text-gray-600 text-sm font-medium">線色</label>
-                    <input type="color" id="grid-color-picker" title="補助線と枠線の色を選択" value="#FFFFFF">
-                </div>
-                <!-- 補助線コントロール -->
-                <div class="flex items-center space-x-2">
-                    <label for="grid-cols-input" class="text-gray-600 text-sm font-medium">横分割</label>
-                    <input type="number" id="grid-cols-input" min="1" max="32" value="2"
-                           class="w-14 preview-input preview-input-light"
-                           title="横の分割数 (1-32)">
-                </div>
-                <div class="flex items-center space-x-2">
-                    <label for="grid-rows-input" class="text-gray-600 text-sm font-medium">縦分割</label>
-                    <input type="number" id="grid-rows-input" min="1" max="32" value="2"
-                           class="w-14 preview-input preview-input-light"
-                           title="縦の分割数 (1-32)">
-                </div>
-                <div class="flex items-center space-x-2">
-                    <label for="grid-z-select" class="text-gray-600 text-sm font-medium">線</label>
-                    <select id="grid-z-select" class="preview-input preview-input-light" title="補助線の前後">
-                        <option value="back">背面</option>
-                        <option value="front">前面</option>
-                    </select>
-                </div>
-                <!-- ズームコントロール (非表示) -->
-                <div class="flex items-center space-x-2 hidden">
-                    <label id="preview-zoom-label" class="text-gray-600 text-sm font-medium">ズーム</label>
-                    <button id="zoom-out-btn" type="button" class="zoom-btn px-2 py-0.5 rounded-md text-lg font-bold preview-input preview-input-light" title="縮小">-</button>
-                    <button id="zoom-reset-btn" type="button" class="zoom-btn px-2 py-0.5 rounded-md text-sm preview-input preview-input-light" title="リセット">100%</button>
-                    <button id="zoom-in-btn" type="button" class="zoom-btn px-2 py-0.5 rounded-md text-lg font-bold preview-input preview-input-light" title="拡大">+</button>
-                </div>
-            </div>
-            
-            <!-- プレビュー本体 -->
-            <div id="preview" class="w-full h-full rounded-md p-2 transition-colors duration-150">
-                <!-- パン・ズーム用のコンテナ (transform-origin: 0 0) -->
-                <div id="svg-container" style="width: 100%; height: 100%; transform-origin: 0 0;">
-                    <!-- ここにSVGがレンダリングされます -->
+                
+                <!-- プレビュー本体 (変更) flex-grow を追加し、高さを確保 -->
+                <div id="preview" class="w-full h-full p-2 transition-colors duration-150 flex-grow">
+                    <!-- パン・ズーム用のコンテナ (transform-origin: 0 0) -->
+                    <div id="svg-container" style="width: 100%; height: 100%; transform-origin: 0 0;">
+                        <!-- ここにSVGがレンダリングされます -->
+                    </div>
                 </div>
             </div>
         </div>
 
+        <!-- リサイズバー -->
+        <div id="resizer"></div>
+
         <!-- 右側: エディタエリア -->
-        <div id="editor-container" class="w-full md:w-1/2 h-1/2 md:h-full p-4 shadow-lg rounded-lg m-2 flex flex-col transition-colors duration-150">
-            <!-- コントロールバー: -->
-            <div id="control-bar" class="flex items-center justify-start flex-wrap gap-x-4 gap-y-2 mb-2 p-2 rounded-md transition-colors duration-150">
-                <!-- 背景色 -->
-                <div class="flex items-center space-x-2">
-                    <label for="bg-color-picker" class="text-gray-300 text-sm font-medium">背景</label>
-                    <input type="color" id="bg-color-picker" title="背景色を選択" value="#111827">
+        <div id="editor-container" class="shadow-lg flex flex-col transition-colors duration-150 flex-1 overflow-hidden" style="flex-basis: 50%; min-height: 200px; min-width: 200px;">
+            <div class="flex flex-col h-full">
+                <!-- コントロールバー -->
+                <div id="control-bar" class="flex items-center justify-start flex-wrap gap-x-4 gap-y-2 p-2 rounded-md transition-colors duration-150">
+                    
+                    <!-- 背景色 -->
+                    <div class="flex items-center space-x-2">
+                        <label for="bg-color-picker" class="text-gray-300 text-sm font-medium">背景</label>
+                        <input type="color" id="bg-color-picker" title="背景色を選択" value="#111827">
+                    </div>
+                    <!-- 文字色 -->
+                    <div class="flex items-center space-x-2">
+                        <label for="text-color-picker" class="text-gray-300 text-sm font-medium">文字</label>
+                        <input type="color" id="text-color-picker" title="文字色を選択" value="#FFFFFF">
+                    </div>
+                    <!-- 文字サイズ -->
+                    <div class="flex items-center space-x-2">
+                        <label for="font-size-input" class="text-gray-300 text-sm font-medium">サイズ</label>
+                        <input type="number" id="font-size-input" min="8" max="64" value="14"
+                               class="w-14 p-1.5 rounded-md bg-gray-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               title="フォントサイズ (8-64)">
+                    </div>
+                    <!-- SVG読み込みボタン -->
+                    <div class="flex items-center">
+                        <input type="file" id="svg-file-input" accept="image/svg+xml,.svg" class="hidden">
+                        <button id="load-svg-button" type="button"
+                                class="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 transition-colors">
+                            SVGを開く
+                        </button>
+                    </div>
+                    <!-- SVG保存ボタン -->
+                    <div class="flex items-center">
+                        <button id="save-svg-button" type="button"
+                                class="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 transition-colors">
+                            SVGを保存
+                        </button>
+                    </div>
+                    <!-- 最小化チェックボックス -->
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" id="minimize-svg-checkbox" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-600 ring-offset-gray-800 focus:ring-2">
+                        <label for="minimize-svg-checkbox" class="text-gray-300 text-sm font-medium">最小化</label>
+                    </div>
                 </div>
-                <!-- 文字色 -->
-                <div class="flex items-center space-x-2">
-                    <label for="text-color-picker" class="text-gray-300 text-sm font-medium">文字</label>
-                    <input type="color" id="text-color-picker" title="文字色を選択" value="#FFFFFF">
-                </div>
-                <!-- 文字サイズ -->
-                <div class="flex items-center space-x-2">
-                    <label for="font-size-input" class="text-gray-300 text-sm font-medium">サイズ</label>
-                    <input type="number" id="font-size-input" min="8" max="64" value="14"
-                           class="w-14 p-1.5 rounded-md bg-gray-700 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                           title="フォントサイズ (8-64)">
-                </div>
-                <!-- SVG読み込みボタン -->
-                <div class="flex items-center">
-                    <input type="file" id="svg-file-input" accept="image/svg+xml,.svg" class="hidden">
-                    <button id="load-svg-button" type="button"
-                            class="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 transition-colors">
-                        SVGを開く
-                    </button>
-                </div>
-                <!-- SVG保存ボタン -->
-                <div class="flex items-center">
-                    <button id="save-svg-button" type="button"
-                            class="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 transition-colors">
-                        SVGを保存
-                    </button>
-                </div>
-                <!-- 最小化チェックボックス -->
-                <div class="flex items-center space-x-2">
-                    <input type="checkbox" id="minimize-svg-checkbox" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-600 ring-offset-gray-800 focus:ring-2">
-                    <label for="minimize-svg-checkbox" class="text-gray-300 text-sm font-medium">最小化</label>
-                </div>
-            </div>
-            
-            <!-- テキストエリア: -->
-            <textarea id="svg-editor" 
-                      class="w-full h-full p-4 rounded-md leading-relaxed" 
-                      spellcheck="false">
+                
+                <!-- テキストエリア -->
+                <textarea id="svg-editor" 
+                          class="w-full h-full p-4 leading-relaxed flex-grow" 
+                          spellcheck="false">
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
 
 <defs>
@@ -196,6 +235,7 @@
 	fill="url(#myPattern)" stroke="#ff0" stroke-width="1" />
 
 </svg></textarea>
+            </div>
         </div>
     </div>
 
@@ -785,6 +825,103 @@
                     updatePreview();
                 }
             });
+
+            // --- ここからリサイズ機能 ---
+            const resizer = document.getElementById('resizer');
+            // previewContainer と editorContainer は既に取得済み
+            const parentContainer = resizer.parentElement; // 親コンテナ (flex-col md:flex-row)
+
+            let isResizing = false;
+
+            const handleResizeStart = (e) => {
+                isResizing = true;
+                document.body.classList.add('resizing'); // テキスト選択無効
+                // プレビューエリア内の操作を無効化 (ドラッグ競合を防ぐ)
+                preview.style.pointerEvents = 'none'; 
+                e.preventDefault(); // デフォルトのドラッグ動作をキャンセル
+            };
+
+            const handleResizeMove = (e) => {
+                if (!isResizing) return;
+
+                // touchイベントとmouseイベントの座標を共通化
+                const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+                const clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+                if (clientX === 0 && clientY === 0) return; // 不正なイベントデータ
+
+                const parentRect = parentContainer.getBoundingClientRect();
+                const resizerRect = resizer.getBoundingClientRect();
+
+                // Tailwind の md ブレークポイント (768px)
+                const isDesktop = window.innerWidth >= 768;
+
+                if (isDesktop) {
+                    // --- 左右リサイズ (デスクトップ) ---
+                    const gap = resizerRect.width;
+                    const totalWidth = parentRect.width - gap;
+                    
+                    // 親コンテナの左端からマウスカーソルまでの相対位置
+                    let newPreviewWidth = clientX - parentRect.left;
+                    
+                    // リサイズバーの半分左にずらす
+                    newPreviewWidth -= gap / 2;
+
+                    // 最小幅 (min-width: 200px) を考慮
+                    const minWidth = 200;
+                    if (newPreviewWidth < minWidth) newPreviewWidth = minWidth;
+                    
+                    const newEditorWidth = totalWidth - newPreviewWidth;
+                    if (newEditorWidth < minWidth) {
+                        newPreviewWidth = totalWidth - minWidth;
+                    }
+
+                    // flex-basis を % で設定
+                    previewContainer.style.flexBasis = `${(newPreviewWidth / totalWidth) * 100}%`;
+                    editorContainer.style.flexBasis = `${(newEditorWidth / totalWidth) * 100}%`;
+
+                } else {
+                    // --- 上下リサイズ (モバイル) ---
+                    const gap = resizerRect.height;
+                    const totalHeight = parentRect.height - gap;
+
+                    // 親コンテナの上端からマウスカーソルまでの相対位置
+                    let newPreviewHeight = clientY - parentRect.top;
+
+                    // リサイズバーの半分上にずらす
+                    newPreviewHeight -= gap / 2;
+
+                    // 最小高さ (min-height: 200px) を考慮
+                    const minHeight = 200;
+                    if (newPreviewHeight < minHeight) newPreviewHeight = minHeight;
+
+                    const newEditorHeight = totalHeight - newPreviewHeight;
+                    if (newEditorHeight < minHeight) {
+                        newPreviewHeight = totalHeight - minHeight;
+                    }
+                    
+                    // flex-basis を % で設定
+                    previewContainer.style.flexBasis = `${(newPreviewHeight / totalHeight) * 100}%`;
+                    editorContainer.style.flexBasis = `${(newEditorHeight / totalHeight) * 100}%`;
+                }
+            };
+
+            const handleResizeEnd = () => {
+                isResizing = false;
+                document.body.classList.remove('resizing');
+                preview.style.pointerEvents = 'auto'; // 操作を元に戻す
+            };
+
+            // マウスイベント
+            resizer.addEventListener('mousedown', handleResizeStart);
+            document.addEventListener('mousemove', handleResizeMove);
+            document.addEventListener('mouseup', handleResizeEnd);
+
+            // タッチイベント
+            resizer.addEventListener('touchstart', handleResizeStart, { passive: false });
+            document.addEventListener('touchmove', handleResizeMove, { passive: false });
+            document.addEventListener('touchend', handleResizeEnd);
+            document.addEventListener('touchcancel', handleResizeEnd);
+            // --- (ここまでリサイズ機能) ---
 
         });
     </script>
