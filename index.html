@@ -1184,7 +1184,6 @@
                                     stroke="${gridColor}"
                                     stroke-width="${strokeWidth}" 
                                     style="pointer-events: none;" />
-                            
                             <line x1="${x - 2*radius}" y1="${y}" x2="${x + 2*radius}" y2="${y}"
                                   stroke="${gridColor}"
                                   stroke-width="${crosshairStrokeWidth}"
@@ -1193,6 +1192,12 @@
                                   stroke="${gridColor}"
                                   stroke-width="${crosshairStrokeWidth}"
                                   style="pointer-events: none;" />
+                            <text x="${x}" y="${y}" font-size="${2.5*radius}"
+                                  fill="${gridColor}"
+                                  stroke="${previewBgColor}"
+                                  stroke-width="${2*strokeWidth}"
+                                  paint-order="stroke">
+                                  　${x}, ${y}</text>
                         `;
                     } catch (e) {
                         console.error("Failed to draw selection point:", e);
