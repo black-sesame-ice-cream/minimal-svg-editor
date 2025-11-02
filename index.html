@@ -127,11 +127,13 @@
                         <label for="grid-color-picker" id="grid-color-label" class="text-gray-600 text-sm font-medium">線色</label>
                         <input type="color" id="grid-color-picker" title="補助線と枠線の色を選択" value="#eeeeee">
                     </div>
-                    <!-- (新規) ポイントカラーピッカー -->
+                    <!-- (削除) ポイントカラーピッカー -->
+                    <!--
                     <div class="flex items-center space-x-2">
                         <label for="point-color-picker" id="point-color-label" class="text-gray-600 text-sm font-medium">点色</label>
-                        <input type="color" id="point-color-picker" title="選択座標ポイントの色を選択" value="#FF0000">
+                        <input type="color" id="point-color-picker" title="選択座標ポイントの色を選択" value="#000000">
                     </div>
+                    -->
                     <!-- 補助線コントロール -->
                     <div class="flex items-center space-x-2">
                         <label for="grid-cols-input" class="text-gray-600 text-sm font-medium">横分割</label>
@@ -152,6 +154,15 @@
                             <option value="front">前面</option>
                         </select>
                     </div>
+
+                    <!-- (変更) 座標表示エリアをチェックボックスから数値入力に変更 -->
+                    <div class="flex items-center space-x-2">
+                        <label for="coords-decimal-places-input" id="show-coords-label" class="text-gray-600 text-sm font-medium">カーソル座標</label>
+                        <input type="number" id="coords-decimal-places-input" min="-1" max="15" value="0"
+                               class="w-14 preview-input preview-input-light"
+                               title="カーソル座標の小数点以下の桁数 (-1でオフ, 0-15)">
+                    </div>
+
                     <!-- ズームコントロール (非表示) -->
                     <div class="flex items-center space-x-2 hidden">
                         <label id="preview-zoom-label" class="text-gray-600 text-sm font-medium">ズーム</label>
@@ -205,7 +216,7 @@
                     <div class="flex items-center">
                         <input type="file" id="svg-file-input" accept="image/svg+xml,.svg" class="hidden">
                         <button id="load-svg-button" type="button"
-                                class="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 transition-colors">
+                                class="px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 transition-colors">
                             SVGを開く
                         </button>
                     </div>
@@ -224,7 +235,7 @@
                     <!-- SVG保存ボタン -->
                     <div class="flex items-center">
                         <button id="save-svg-button" type="button"
-                                class="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 transition-colors">
+                                class="px-3 py-1 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-800 transition-colors">
                             SVGを保存
                         </button>
                     </div>
@@ -309,7 +320,9 @@
             const gridRowsInput = document.getElementById('grid-rows-input');
             const gridZSelect = document.getElementById('grid-z-select');
             const gridColorPicker = document.getElementById('grid-color-picker');
-            const pointColorPicker = document.getElementById('point-color-picker'); // (新規)
+            // const pointColorPicker = document.getElementById('point-color-picker'); // (削除)
+            // const showCoordsCheckbox = document.getElementById('show-coords-checkbox'); // (削除)
+            const coordsDecimalPlacesInput = document.getElementById('coords-decimal-places-input'); // (新規)
             
             // 補助線表示用のSVG要素を作成
             const gridSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -348,8 +361,15 @@
             selectionPointGroup.id = 'selection-point-group';
             pointSvg.appendChild(selectionPointGroup); 
 
+            // (新規) カーソル座標表示用のグループを作成
+            const cursorCoordsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            cursorCoordsGroup.id = 'cursor-coords-group';
+            pointSvg.appendChild(cursorCoordsGroup); // selectionPointGroup の後に追加
+
             // (新規) updateSelectionPoint をDOMContentLoadedスコープに移動
             let updateSelectionPoint = () => {};
+            // (新規) updateCursorCoords をDOMContentLoadedスコープに移動
+            let updateCursorCoords = () => {};
 
             // --- Utility Functions ---
 
@@ -669,13 +689,13 @@
             /**
              * プレビューに補助線グリッドを描画します。
              */
-            function drawGrid(svgElement, attrs, currentScale = 1.0) { // (変更) currentScale を引数に追加
+            function drawGrid(svgElement, attrs, currentScale = 1.0) { // currentScale を引数に追加
                 // (変更) 毎回グループを取得
                 const gridGroup = gridSvg.querySelector('#grid-lines-group');
                 if (!gridGroup) return; // 本来ありえないが、念のため
 
-                if (!svgElement || !attrs) { // (変更) attrs もチェック
-                    gridGroup.innerHTML = ''; // (変更)
+                if (!svgElement || !attrs) { // attrs もチェック
+                    gridGroup.innerHTML = '';
                     return;
                 }
 
@@ -690,7 +710,7 @@
                     const gridColor = gridColorPicker.value; 
                     
                     if (!attrs.viewBoxValue || !attrs.vbParts || !attrs.newViewBoxValue) { 
-                        gridGroup.innerHTML = ''; // (変更)
+                        gridGroup.innerHTML = '';
                         return;
                     }
 
@@ -850,6 +870,12 @@
                     // (新規) ズーム後にグリッドを再描画
                     const svgElement = userSvgWrapper.querySelector('svg');
                     drawGrid(svgElement, lastSvgAttrs, scale);
+
+                    // (新規) ズーム後、座標表示がONなら即時更新
+                    // (変更) チェックボックスの代わりに数値入力の値を確認
+                    if (coordsDecimalPlacesInput && parseInt(coordsDecimalPlacesInput.value, 10) >= 0) {
+                        updateCursorCoords(e); // DOMContentLoadedスコープの関数を呼ぶ
+                    }
                 });
 
                 // パン (ドラッグ)
@@ -985,7 +1011,7 @@
                     renderPreview();
                     updateSelectionPoint(); // (追加) 線色変更時もポイントを更新
                 }); 
-                pointColorPicker.addEventListener('input', updateSelectionPoint); // (新規)
+                // pointColorPicker.addEventListener('input', updateSelectionPoint); // (削除)
             }
 
             function initFileHandlers() {
@@ -1101,9 +1127,9 @@
             
             // (変更) エディタのテキスト選択を監視し、座標らしきものが選択されたらプレビューに点を描画します。
             function initSelectionHandler() {
-                // (変更) pointColorPicker もチェック
-                if (!selectionPointGroup || !pointColorPicker) { 
-                    console.error("Selection handler: Required elements (group or picker) not found.");
+                // (変更) pointColorPicker のチェックを削除
+                if (!selectionPointGroup) { 
+                    console.error("Selection handler: Required elements (group) not found.");
                     return;
                 }
 
@@ -1145,10 +1171,10 @@
 
                     // (5) 描画 (drawGridからロジックを拝借)
                     try {
-                        // (変更) 色を取得
-                        const pointColor = pointColorPicker.value;
+                        // (変更) pointColor を削除し、previewBgColor を使用
+                        // const pointColor = pointColorPicker.value; // (削除)
                         const previewBgColor = previewBgPicker.value;
-                        const gridColor = gridColorPicker.value; // (新規) 線色を取得
+                        const gridColor = gridColorPicker.value; 
 
                         const [newX, newY, newWidth, newHeight] = lastSvgAttrs.newViewBoxValue.split(' ').map(Number);
                         
@@ -1180,7 +1206,7 @@
                         
                         selectionPointGroup.innerHTML = `
                             <circle cx="${x}" cy="${y}" r="${radius}" 
-                                    fill="${pointColor}" 
+                                    fill="${previewBgColor}" 
                                     stroke="${gridColor}"
                                     stroke-width="${strokeWidth}" 
                                     style="pointer-events: none;" />
@@ -1211,6 +1237,127 @@
                 // ズーム/パン操作 (スケール変更) が終わった時も再描画
                 preview.addEventListener('wheel', updateSelectionPoint); // `wheel` イベントで `scale` が変わるので、再計算が必要
             }
+            
+            // (変更) プレビューエリアのマウス座標をSVG座標に変換してカーソル位置に表示します。
+            function initCoordsDisplay() {
+                // (変更) 必要なDOM要素をチェック
+                if (!preview || !pointSvg || !cursorCoordsGroup || !coordsDecimalPlacesInput) { // (変更)
+                    console.error("Coords display: Missing required elements (preview, pointSvg, cursorCoordsGroup, or coordsDecimalPlacesInput)"); // (変更)
+                    return;
+                }
+
+                // (変更) 関数をグローバルスコープの変数に代入
+                updateCursorCoords = (e) => {
+                    // (変更) 桁数を取得し、-1以下またはNaNならオフ
+                    const digits = parseInt(coordsDecimalPlacesInput.value, 10);
+                    if (isNaN(digits) || digits < 0) { // (変更)
+                        cursorCoordsGroup.innerHTML = '';
+                        return;
+                    }
+                    
+                    // (変更) パン（ドラッグ）中は（クリアせず）更新もしない
+                    if (isPanning) {
+                        // cursorCoordsGroup.innerHTML = ''; // クリア処理を削除
+                        return; // 更新せず、直前の表示を保持する
+                    }
+
+                    // pointSvg が viewBox 等でセットアップされている必要がある
+                    if (!lastSvgAttrs || !lastSvgAttrs.newViewBoxValue) {
+                        cursorCoordsGroup.innerHTML = '';
+                        return;
+                    }
+
+                    try {
+                        const ctm = pointSvg.getScreenCTM();
+                        if (!ctm) {
+                            cursorCoordsGroup.innerHTML = '';
+                            return; // CTMが取得できない
+                        }
+
+                        const svgPoint = pointSvg.createSVGPoint();
+                        svgPoint.x = e.clientX;
+                        svgPoint.y = e.clientY;
+                        
+                        // スクリーン座標をSVG座標に変換
+                        const transformedPoint = svgPoint.matrixTransform(ctm.inverse());
+                        
+                        const svgX = transformedPoint.x;
+                        const svgY = transformedPoint.y;
+
+                        // --- 座標テキストの描画ロジック (selectionHandlerから流用・変更) ---
+                        const gridColor = gridColorPicker.value;
+                        const previewBgColor = previewBgPicker.value;
+                        
+                        const [newX, newY, newWidth, newHeight] = lastSvgAttrs.newViewBoxValue.split(' ').map(Number);
+                        const containerWidth = preview.clientWidth;
+                        const containerHeight = preview.clientHeight;
+                        
+                        if (containerWidth <= 0 || containerHeight <= 0 || newWidth <= 0 || newHeight <= 0) {
+                            cursorCoordsGroup.innerHTML = '';
+                            return;
+                        }
+                        
+                        const containerAspect = containerWidth / containerHeight;
+                        const viewBoxAspect = newWidth / newHeight;
+                        
+                        let unitsPerPixel;
+                        if (viewBoxAspect > containerAspect) {
+                            unitsPerPixel = newWidth / (containerWidth * scale); // scale を考慮
+                        } else {
+                            unitsPerPixel = newHeight / (containerHeight * scale); // scale を考慮
+                        }
+
+                        const fontSizePx = 10;
+                        const strokePx = 2;
+                        const textOffsetPx = 3; // カーソルからのオフセット（ピクセル）
+
+                        const dynamicFontSize = fontSizePx * unitsPerPixel;
+                        const dynamicStrokeWidth = strokePx * unitsPerPixel;
+                        const dynamicTextOffset = textOffsetPx * unitsPerPixel;
+
+                        // (変更) digits を使ってフォーマット
+                        const displayText = `${svgX.toFixed(digits)}, ${svgY.toFixed(digits)}`;
+                        
+                        // (変更) カーソルの少し上（Y座標を減らす）に表示
+                        const textYPos = svgY - dynamicTextOffset; 
+
+                        cursorCoordsGroup.innerHTML = `
+                            <text x="${svgX}" y="${textYPos}" 
+                                  font-size="${dynamicFontSize}"
+                                  fill="${gridColor}"
+                                  stroke="${previewBgColor}"
+                                  stroke-width="${dynamicStrokeWidth}"
+                                  paint-order="stroke"
+                                  text-anchor="middle"
+                                  dominant-baseline="text-after-edge"
+                                  style="pointer-events: none;">
+                                  ${displayText}
+                            </text>
+                        `;
+                        // --- 描画ロジックここまで ---
+
+                    } catch (err) {
+                        // CTMが逆行列を持たない場合などにエラー
+                        console.error("Error transforming coordinates:", err);
+                        cursorCoordsGroup.innerHTML = '';
+                    }
+                };
+
+                const handlePreviewMouseLeave = () => {
+                    // マウスが外れたらリセット
+                    cursorCoordsGroup.innerHTML = '';
+                };
+                
+                // (変更) 数値入力が変更されたら（-1になった場合など）クリア処理を実行
+                coordsDecimalPlacesInput.addEventListener('input', () => { // (変更)
+                    if (parseInt(coordsDecimalPlacesInput.value, 10) < 0) { // (変更)
+                        cursorCoordsGroup.innerHTML = '';
+                    }
+                });
+
+                preview.addEventListener('mousemove', updateCursorCoords);
+                preview.addEventListener('mouseleave', handlePreviewMouseLeave);
+            }
 
             // --- Initialization ---
 
@@ -1223,15 +1370,15 @@
             // ページ読み込み時に最初のプレビューを実行
             renderPreview();
 
-            // 各機能のイベントリスナーを初期化
+            // (変更) 各機能のイベントリスナーを初期化
             initEditorControls();
-            initSelectionHandler(); // (変更) initPreviewControls より先に呼び出す
+            initSelectionHandler(); 
             initPreviewControls();
-            initPanZoom();
+            initCoordsDisplay(); // (変更) PanZoom より先に呼び出す
+            initPanZoom();       // (変更) CoordsDisplay より後に呼び出す
             initFileHandlers();
             initSnippets();
             initResizer();
-            // (変更) initSelectionHandler は先に移動
 
         });
     </script>
