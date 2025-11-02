@@ -476,7 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const viewBoxAspect = newWidth / newHeight; // (変更) newWidth/newHeight を使用
 
             let unitsPerPixel;
-            // (変更) `preserveAspectRatio` の "meet" ロジックに基づいて計算
+            // (変更) `preserveAspectRatio` の "meet" ロックに基づいて計算
             if (viewBoxAspect > containerAspect) {
                 // ViewBox is wider than container, so width is the limiting dimension
                 unitsPerPixel = newWidth / (containerWidth * currentScale);
@@ -631,21 +631,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- スニペット(雛形) ---
     const snippets = {
         // --- 基本・コンテナ ---
+        '=': '=""',
+        'w': 'width=""',
+        'h': 'height=""',
+        'f': 'fill=""',
+        's': 'stroke=""',
+        'sw': 'stroke-width=""',
+        't': 'transform=""',
+        'rot': 'rotate(angle, cx, cy)',
         '<svg': '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">\n\t\n</svg>',
         '<g': '<g>\n\t\n</g>',
         '<defs': '<defs>\n\t\n</defs>',
+        '<def': '<defs>\n\t\n</defs>',
 
         // --- 基本図形 ---
-        '<r': '<rect x="" y="" width="" height="" fill="#fff" stroke="#000" stroke-width=""/>',
-        '<c': '<circle cx="" cy="" r="" fill="#fff" stroke="#000" stroke-width=""/>',
-        '<e': '<ellipse cx="" cy="" rx="" ry="" fill="#fff" stroke="#000" stroke-width=""/>',
-        '<l': '<line x1="" y1="" x2="" y2="" stroke="#000" stroke-width=""/>',
-        '<pl': '<polyline points="" fill="none" stroke="#000" stroke-width=""/>',
-        '<pg': '<polygon points="" fill="#fff" stroke="#000" stroke-width=""/>',
-        '<p': '<path d="" fill="none" stroke="#000" stroke-width=""/>',
+        '<r': '<rect x="" y="" width="" height="" fill="#888"/>',
+        '<c': '<circle cx="" cy="" r="" fill="#888"/>',
+        '<e': '<ellipse cx="" cy="" rx="" ry="" fill="#888">',
+        '<l': '<line x1="" y1="" x2="" y2="" stroke="#888" stroke-width=""/>',
+        '<pl': '<polyline points="" fill="none" stroke="#888" stroke-width=""/>',
+        '<pg': '<polygon points="" fill="#888"/>',
+        '<p': '<path d="" fill="none" stroke="#888" stroke-width=""/>',
 
         // --- テキスト関連 ---
-        '<t': '<text x="" y="" fill="#000" font-size="">text</text>',
+        '<t': '<text x="" y="" fill="#888" font-size="">text</text>',
         '<ts': '<tspan x="" y="" dy="">text</tspan>',
         '<tp': '<textPath href="#path-id" startOffset="0%">text</textPath>',
 
@@ -661,8 +670,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- アニメーション (SMIL) ---
         '<anm': '<animate\n\tattributeName=""\n\tvalues=""\n\tkeyTimes=""\n\tdur="s"\n\trepeatCount="indefinite"\n\tcalcMode="spline"\n\tkeySplines=""\n/>',
-        '<anmT': '<animateTransform\n\tattributeName="transform"\n\tattributeType="XML"\n\ttype="rotate"\n\tfrom=""\n\tto=""\n\tdur="s"\n\trepeatCount="indefinite"\n/>',
-        '<anmM': '<animateMotion\n\tpath=""\n\tdur="s"\n\trepeatCount="indefinite"\n/>',
+        '<anmt': '<animateTransform\n\tattributeName="transform"\n\tattributeType="XML"\n\ttype="rotate"\n\tfrom=""\n\tto=""\n\tdur="s"\n\trepeatCount="indefinite"\n/>',
+        '<anmm': '<animateMotion\n\tpath=""\n\tdur="s"\n\trepeatCount="indefinite"\n/>',
         '<set': '<set attributeName="visibility" to="visible" begin="s"/>',
 
         // --- クリッピング・マスキング ---
@@ -682,7 +691,7 @@ document.addEventListener('DOMContentLoaded', () => {
         '<desc': '<desc>ここに詳細な説明</desc>'
         }
 
-    // (変更) インデント機能を追加した initSnippets
+    // (変更) インデント機能を追加、スニペットトリガーを (Ctrl/Cmd + Enter) に変更
     function initSnippets() {
         editor.addEventListener('keydown', (e) => {
             if (editor.readOnly) return;
@@ -691,15 +700,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const end = editor.selectionEnd;
             const value = editor.value;
 
-            // --- 1. スマートインデント (Enterキー) ---
+            // --- 1. スマートインデント (Enter) / スニペット (Ctrl+Enter) ---
             if (e.key === 'Enter') {
                 
-                // (A) スニペットが発動する場合 (Enter)
-                // (既存のロジック: Enterキーでのスニペット起動)
+                // (A) スニペット判定 (Ctrl/Cmd + Enter)
                 const textBeforeKey = value.substring(0, start);
                 let triggerKey = Object.keys(snippets).find(key => textBeforeKey.endsWith(key));
                 
-                if (triggerKey && start === end) { // (変更) カーソル位置でのみスニペット発動
+                // (変更) e.ctrlKey (Win/Linux) または e.metaKey (Mac) が押されている場合のみ
+                if (triggerKey && start === end && (e.ctrlKey || e.metaKey)) { 
                     e.preventDefault();
                     const snippetValue = snippets[triggerKey];
                     const newTextBefore = textBeforeKey.substring(0, textBeforeKey.length - triggerKey.length);
@@ -714,9 +723,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         : newTextBefore.length + snippetValue.length;
                         
                     editor.selectionStart = editor.selectionEnd = newCursorPos;
-                    
-                } else {
-                    // (B) 通常の改行 (スマートインデント)
+                
+                // (B) 通常の改行 (スマートインデント) 
+                // (変更) Enterキー単体、またはスニペットが発動しない場合
+                } else { 
                     e.preventDefault(); // デフォルトの改行をキャンセル
 
                     // 現在行のインデントを取得
@@ -742,6 +752,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // --- 2. インデント/アウトデント (Tab / Shift+Tab) ---
+            // (変更なし。Tabキーによるスニペット起動は維持されます)
             if (e.key === 'Tab') {
                 
                 // (A) Shift + Tab (一括アウトデント)
