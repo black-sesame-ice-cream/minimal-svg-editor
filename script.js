@@ -629,69 +629,74 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- スニペット(雛形) ---
+    // (変更) $1 カーソルマーカーの導入、スニペットの追加
     const snippets = {
         // --- 基本・コンテナ ---
-        '=': '=""',
-        'w': 'width=""',
-        'h': 'height=""',
-        'f': 'fill=""',
-        's': 'stroke=""',
-        'sw': 'stroke-width=""',
-        't': 'transform=""',
-        'rot': 'rotate(angle, cx, cy)',
-        '<svg': '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">\n\t\n</svg>',
-        '<g': '<g>\n\t\n</g>',
-        '<defs': '<defs>\n\t\n</defs>',
-        '<def': '<defs>\n\t\n</defs>',
+        '=': '="$1"',
+        'w': 'width="$1"',
+        'h': 'height="$1"',
+        'f': 'fill="$1"',
+        'fn': 'fill="none"$1',
+        's': 'stroke="$1"',
+        'sw': 'stroke-width="$1"',
+        'slc': 'stroke-linecap="$1"',
+        'slj': 'stroke-linejoin="$1"',
+        't': 'transform="$1"',
+        'rot': 'rotate($1, cx, cy)',
+        '<svg': '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">\n\t$1\n</svg>',
+        '<g': '<g>\n\t$1\n</g>',
+        '<defs': '<defs>\n\t$1\n</defs>',
+        '<def': '<defs>\n\t$1\n</defs>',
 
         // --- 基本図形 ---
-        '<r': '<rect x="" y="" width="" height="" fill="#888"/>',
-        '<c': '<circle cx="" cy="" r="" fill="#888"/>',
-        '<e': '<ellipse cx="" cy="" rx="" ry="" fill="#888">',
-        '<l': '<line x1="" y1="" x2="" y2="" stroke="#888" stroke-width=""/>',
-        '<pl': '<polyline points="" fill="none" stroke="#888" stroke-width=""/>',
-        '<pg': '<polygon points="" fill="#888"/>',
-        '<p': '<path d="" fill="none" stroke="#888" stroke-width=""/>',
+        '<r': '<rect x="$1" y="" width="" height="" fill="#888"/>',
+        '<c': '<circle cx="$1" cy="" r="" fill="#888"/>',
+        '<e': '<ellipse cx="$1" cy="" rx="" ry="" fill="#888">',
+        '<l': '<line x1="$1" y1="" x2="" y2="" stroke="#888" stroke-width=""/>',
+        '<pl': '<polyline points="$1" fill="none" stroke="#888" stroke-width=""/>',
+        '<pg': '<polygon points="$1" fill="#888"/>',
+        '<p': '<path d="$1" fill="none" stroke="#888" stroke-width=""/>',
 
         // --- テキスト関連 ---
-        '<t': '<text x="" y="" fill="#888" font-size="">text</text>',
-        '<ts': '<tspan x="" y="" dy="">text</tspan>',
-        '<tp': '<textPath href="#path-id" startOffset="0%">text</textPath>',
+        '<t': '<text x="$1" y="" fill="#888" font-size="">text</text>',
+        '<ts': '<tspan x="$1" y="" dy="">text</tspan>',
+        '<tp': '<textPath href="#$1" startOffset="0%">text</textPath>',
 
         // --- 構造・再利用 ---
-        '<use': '<use href="#id" x="" y=""/>',
-        '<sym': '<symbol id="" viewBox="0 0 100 100">\n\t\n</symbol>',
+        '<use': '<use href="#$1" x="" y=""/>',
+        '<sym': '<symbol id="$1" viewBox="0 0 100 100">\n\t\n</symbol>',
 
         // --- 塗り・線（Gradient, Pattern, Marker） ---
-        '<lg': '<linearGradient id="" x1="0%" y1="0%" x2="100%" y2="0%">\n\t<stop offset="0%" stop-color="" />\n\t<stop offset="100%" stop-color="" />\n</linearGradient>',
-        '<rg': '<radialGradient id="" cx="50%" cy="50%" r="50%">\n\t<stop offset="0%" stop-color="" />\n\t<stop offset="100%" stop-color="" />\n</radialGradient>',
-        '<ptn': '<pattern id="" width="" height="" patternUnits="userSpaceOnUse">\n\t\n</pattern>',
-        '<mrk': '<marker id="" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">\n\t<path d="M 0 0 L 10 5 L 0 10 z" fill="#000" />\n</marker>',
+        '<lg': '<linearGradient id="$1" x1="0%" y1="0%" x2="100%" y2="0%">\n\t<stop offset="0%" stop-color="" />\n\t<stop offset="100%" stop-color="" />\n</linearGradient>',
+        '<rg': '<radialGradient id="$1" cx="50%" cy="50%" r="50%">\n\t<stop offset="0%" stop-color="" />\n\t<stop offset="100%" stop-color="" />\n</radialGradient>',
+        '<ptn': '<pattern id="$1" width="" height="" patternUnits="userSpaceOnUse">\n\t\n</pattern>',
+        '<mrk': '<marker id="$1" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">\n\t<path d="M 0 0 L 10 5 L 0 10 z" fill="#000" />\n</marker>',
 
         // --- アニメーション (SMIL) ---
-        '<anm': '<animate\n\tattributeName=""\n\tvalues=""\n\tkeyTimes=""\n\tdur="s"\n\trepeatCount="indefinite"\n\tcalcMode="spline"\n\tkeySplines=""\n/>',
-        '<anmt': '<animateTransform\n\tattributeName="transform"\n\tattributeType="XML"\n\ttype="rotate"\n\tfrom=""\n\tto=""\n\tdur="s"\n\trepeatCount="indefinite"\n/>',
-        '<anmm': '<animateMotion\n\tpath=""\n\tdur="s"\n\trepeatCount="indefinite"\n/>',
-        '<set': '<set attributeName="visibility" to="visible" begin="s"/>',
+        '<anm': '<animate\n\tattributeName="$1"\n\tvalues=""\n\tkeyTimes=""\n\tdur="s"\n\trepeatCount="indefinite"\n\tcalcMode="spline"\n\tkeySplines=""\n/>',
+        '<anmt': '<animateTransform\n\tattributeName="transform"\n\tattributeType="XML"\n\ttype="rotate"\n\tfrom="$1"\n\tto=""\n\tdur="s"\n\trepeatCount="indefinite"\n/>',
+        '<anmm': '<animateMotion\n\tpath="$1"\n\tdur="s"\n\trepeatCount="indefinite"\n/>',
+        '<set': '<set attributeName="$1" to="visible" begin="s"/>',
 
         // --- クリッピング・マスキング ---
-        '<clp': '<clipPath id="">\n\t\n\t\n</clipPath>',
-        '<msk': '<mask id="">\n\t\n\t\n</mask>',
+        '<clp': '<clipPath id="$1">\n\t\n\t\n</clipPath>',
+        '<msk': '<mask id="$1">\n\t\n\t\n</mask>',
 
         // --- フィルター効果 ---
-        '<fil': '<filter id="" x="-20%" y="-20%" width="140%" height="140%">\n\t\n</filter>',
-        '<fegb': '<feGaussianBlur in="SourceGraphic" stdDeviation=""/>',
-        '<feo': '<feOffset dx="" dy=""/>',
-        '<fem': '<feMerge>\n\t<feMergeNode in=""/>\n\t<feMergeNode in="SourceGraphic"/>\n</feMerge>',
+        '<fil': '<filter id="$1" x="-20%" y="-20%" width="140%" height="140%">\n\t\n</filter>',
+        '<fegb': '<feGaussianBlur in="SourceGraphic" stdDeviation="$1"/>',
+        '<feo': '<feOffset dx="$1" dy=""/>',
+        '<fem': '<feMerge>\n\t<feMergeNode in="$1"/>\n\t<feMergeNode in="SourceGraphic"/>\n</feMerge>',
 
         // --- その他（スタイル, リンク, アクセシビリティ） ---
         '<sty': '<style>\n\t.my-class {\n\t\tfill: #fff;\n\t\tstroke: #000;\n\t}\n</style>',
-        '<a': '<a href="" target="_blank">\n\t\n</a>',
-        '<title': '<title>ここにタイトル</title>',
-        '<desc': '<desc>ここに詳細な説明</desc>'
+        '<a': '<a href="$1" target="_blank">\n\t\n</a>',
+        '<title': '<title>$1</title>',
+        '<desc': '<desc>$1</desc>'
         }
 
     // (変更) インデント機能を追加、スニペットトリガーを (Ctrl/Cmd + Enter) に変更
+    // (変更) $1 カーソルマーカーに対応
     function initSnippets() {
         editor.addEventListener('keydown', (e) => {
             if (editor.readOnly) return;
@@ -714,15 +719,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     const newTextBefore = textBeforeKey.substring(0, textBeforeKey.length - triggerKey.length);
                     const textAfter = value.substring(end);
                     
-                    editor.value = newTextBefore + snippetValue + textAfter;
-
-                    // カーソル位置を "" の間に移動
-                    const firstQuoteIndex = snippetValue.indexOf('""');
-                    let newCursorPos = (firstQuoteIndex !== -1)
-                        ? newTextBefore.length + firstQuoteIndex + 1
-                        : newTextBefore.length + snippetValue.length;
-                        
+                    // ▼▼▼ (変更) $1 カーソル位置特定ロジック ▼▼▼
+                    let snippetFinalValue = snippetValue;
+                    let newCursorPos;
+                    const cursorMarkerIndex = snippetFinalValue.indexOf('$1');
+                    
+                    if (cursorMarkerIndex !== -1) {
+                        snippetFinalValue = snippetFinalValue.replace('$1', ''); // マーカーを削除
+                        newCursorPos = newTextBefore.length + cursorMarkerIndex;
+                    } else {
+                        // $1 がない場合、従来の "" を探す
+                        const firstQuoteIndex = snippetFinalValue.indexOf('""');
+                        if (firstQuoteIndex !== -1) {
+                            newCursorPos = newTextBefore.length + firstQuoteIndex + 1;
+                        } else {
+                            // それもない場合は、スニペットの末尾
+                            newCursorPos = newTextBefore.length + snippetFinalValue.length;
+                        }
+                    }
+                    
+                    editor.value = newTextBefore + snippetFinalValue + textAfter;
                     editor.selectionStart = editor.selectionEnd = newCursorPos;
+                    // ▲▲▲ (変更) $1 カーソル位置特定ロジック ▲▲▲
                 
                 // (B) 通常の改行 (スマートインデント) 
                 // (変更) Enterキー単体、またはスニペットが発動しない場合
@@ -839,20 +857,40 @@ document.addEventListener('DOMContentLoaded', () => {
                             const newTextBefore = textBeforeKey.substring(0, textBeforeKey.length - triggerKey.length);
                             const textAfter = value.substring(end);
                             
-                            editor.value = newTextBefore + snippetValue + textAfter;
-
-                            const firstQuoteIndex = snippetValue.indexOf('""');
-                            let newCursorPos = (firstQuoteIndex !== -1)
-                                ? newTextBefore.length + firstQuoteIndex + 1
-                                : newTextBefore.length + snippetValue.length;
-                                
+                            // ▼▼▼ (変更) $1 カーソル位置特定ロジック ▼▼▼
+                            let snippetFinalValue = snippetValue;
+                            let newCursorPos;
+                            const cursorMarkerIndex = snippetFinalValue.indexOf('$1');
+                            
+                            if (cursorMarkerIndex !== -1) {
+                                snippetFinalValue = snippetFinalValue.replace('$1', ''); // マーカーを削除
+                                newCursorPos = newTextBefore.length + cursorMarkerIndex;
+                            } else {
+                                // $1 がない場合、従来の "" を探す
+                                const firstQuoteIndex = snippetFinalValue.indexOf('""');
+                                if (firstQuoteIndex !== -1) {
+                                    newCursorPos = newTextBefore.length + firstQuoteIndex + 1;
+                                } else {
+                                    // それもない場合は、スニペットの末尾
+                                    newCursorPos = newTextBefore.length + snippetFinalValue.length;
+                                }
+                            }
+                            
+                            editor.value = newTextBefore + snippetFinalValue + textAfter;
                             editor.selectionStart = editor.selectionEnd = newCursorPos;
+                            // ▲▲▲ (変更) $1 カーソル位置特定ロジック ▲▲▲
 
                         } else {
-                            // (既存の通常のタブ挿入処理)
+                            // (変更) 通常のタブ挿入処理 (Undoスタックに対応)
                             e.preventDefault();
-                            editor.value = value.substring(0, start) + '\t' + value.substring(end);
-                            editor.selectionStart = editor.selectionEnd = start + 1;
+                            
+                            // execCommandを使用してUndoスタックに登録する
+                            // (これが失敗した場合のみフォールバック処理を行う)
+                            if (!document.execCommand('insertText', false, '\t')) {
+                                // フォールバック (従来の処理)
+                                editor.value = value.substring(0, start) + '\t' + value.substring(end);
+                                editor.selectionStart = editor.selectionEnd = start + 1;
+                            }
                         }
                     }
                 }
@@ -1285,3 +1323,5 @@ document.addEventListener('DOMContentLoaded', () => {
     initResizer();
 
 });
+
+
