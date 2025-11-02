@@ -633,15 +633,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const snippets = {
         // --- 基本・コンテナ ---
         '=': '="$1"',
-        'w': 'width="$1"',
-        'h': 'height="$1"',
-        'f': 'fill="$1"',
-        'fn': 'fill="none"$1',
-        's': 'stroke="$1"',
+        '.w': 'width="$1"',
+        '.h': 'height="$1"',
+        '.f': 'fill="$1"',
+        '.s': 'stroke="$1"',
         'sw': 'stroke-width="$1"',
         'slc': 'stroke-linecap="$1"',
         'slj': 'stroke-linejoin="$1"',
-        't': 'transform="$1"',
+        '.t': 'transform="$1"',
+        'tl': 'translate($1,)',
         'rot': 'rotate($1, cx, cy)',
         '<svg': '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">\n\t$1\n</svg>',
         '<g': '<g>\n\t$1\n</g>',
@@ -650,12 +650,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- 基本図形 ---
         '<r': '<rect x="$1" y="" width="" height="" fill="#888"/>',
+        '</r': '</rect>',
         '<c': '<circle cx="$1" cy="" r="" fill="#888"/>',
+        '</c': '</circle>',
         '<e': '<ellipse cx="$1" cy="" rx="" ry="" fill="#888">',
+        '</e': '</ellipse>',
         '<l': '<line x1="$1" y1="" x2="" y2="" stroke="#888" stroke-width=""/>',
+        '</e': '</line>',
         '<pl': '<polyline points="$1" fill="none" stroke="#888" stroke-width=""/>',
+        '</pl': '</polyline>',
         '<pg': '<polygon points="$1" fill="#888"/>',
+        '</pg': '</polugon>',
         '<p': '<path d="$1" fill="none" stroke="#888" stroke-width=""/>',
+        '</p': '</path>',
 
         // --- テキスト関連 ---
         '<t': '<text x="$1" y="" fill="#888" font-size="">text</text>',
