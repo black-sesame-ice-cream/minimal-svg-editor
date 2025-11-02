@@ -905,7 +905,12 @@
 
             // --- スニペット(雛形) ---
             const snippets = {
+                // --- 基本・コンテナ ---
                 '<svg': '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">\n\t\n</svg>',
+                '<g': '<g>\n\t\n</g>',
+                '<defs': '<defs>\n\t\n</defs>',
+
+                // --- 基本図形 ---
                 '<r': '<rect x="" y="" width="" height="" fill="#fff" stroke="#000" stroke-width=""/>',
                 '<c': '<circle cx="" cy="" r="" fill="#fff" stroke="#000" stroke-width=""/>',
                 '<e': '<ellipse cx="" cy="" rx="" ry="" fill="#fff" stroke="#000" stroke-width=""/>',
@@ -913,47 +918,209 @@
                 '<pl': '<polyline points="" fill="none" stroke="#000" stroke-width=""/>',
                 '<pg': '<polygon points="" fill="#fff" stroke="#000" stroke-width=""/>',
                 '<p': '<path d="" fill="none" stroke="#000" stroke-width=""/>',
+
+                // --- テキスト関連 ---
                 '<t': '<text x="" y="" fill="#000" font-size="">text</text>',
-                '<a': '<animate\n\tattributeName=""\n\tvalues=""\n\tkeyTimes=""\n\tdur="s"\n\trepeatCount="indefinite"\n\tcalcMode="spline"\n\tkeySplines=""\n/>',
-                '<g': '<g>\n\t\n</g>',
-                '<defs': '<defs>\n\t\n</defs>',
+                '<ts': '<tspan x="" y="" dy="">text</tspan>',
+                '<tp': '<textPath href="#path-id" startOffset="0%">text</textPath>',
+
+                // --- 構造・再利用 ---
+                '<use': '<use href="#id" x="" y=""/>',
+                '<sym': '<symbol id="" viewBox="0 0 100 100">\n\t\n</symbol>',
+
+                // --- 塗り・線（Gradient, Pattern, Marker） ---
                 '<lg': '<linearGradient id="" x1="0%" y1="0%" x2="100%" y2="0%">\n\t<stop offset="0%" stop-color="" />\n\t<stop offset="100%" stop-color="" />\n</linearGradient>',
                 '<rg': '<radialGradient id="" cx="50%" cy="50%" r="50%">\n\t<stop offset="0%" stop-color="" />\n\t<stop offset="100%" stop-color="" />\n</radialGradient>',
                 '<ptn': '<pattern id="" width="" height="" patternUnits="userSpaceOnUse">\n\t\n</pattern>',
-                '<use': '<use href="#id" x="" y=""/>'
-            };
+                '<mrk': '<marker id="" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">\n\t<path d="M 0 0 L 10 5 L 0 10 z" fill="#000" />\n</marker>',
 
+                // --- アニメーション (SMIL) ---
+                '<anm': '<animate\n\tattributeName=""\n\tvalues=""\n\tkeyTimes=""\n\tdur="s"\n\trepeatCount="indefinite"\n\tcalcMode="spline"\n\tkeySplines=""\n/>',
+                '<anmT': '<animateTransform\n\tattributeName="transform"\n\tattributeType="XML"\n\ttype="rotate"\n\tfrom=""\n\tto=""\n\tdur="s"\n\trepeatCount="indefinite"\n/>',
+                '<anmM': '<animateMotion\n\tpath=""\n\tdur="s"\n\trepeatCount="indefinite"\n/>',
+                '<set': '<set attributeName="visibility" to="visible" begin="s"/>',
+
+                // --- クリッピング・マスキング ---
+                '<clp': '<clipPath id="">\n\t\n\t\n</clipPath>',
+                '<msk': '<mask id="">\n\t\n\t\n</mask>',
+
+                // --- フィルター効果 ---
+                '<fil': '<filter id="" x="-20%" y="-20%" width="140%" height="140%">\n\t\n</filter>',
+                '<fegb': '<feGaussianBlur in="SourceGraphic" stdDeviation=""/>',
+                '<feo': '<feOffset dx="" dy=""/>',
+                '<fem': '<feMerge>\n\t<feMergeNode in=""/>\n\t<feMergeNode in="SourceGraphic"/>\n</feMerge>',
+
+                // --- その他（スタイル, リンク, アクセシビリティ） ---
+                '<sty': '<style>\n\t.my-class {\n\t\tfill: #fff;\n\t\tstroke: #000;\n\t}\n</style>',
+                '<a': '<a href="" target="_blank">\n\t\n</a>',
+                '<title': '<title>ここにタイトル</title>',
+                '<desc': '<desc>ここに詳細な説明</desc>'
+                }
+
+            // (変更) インデント機能を追加した initSnippets
             function initSnippets() {
                 editor.addEventListener('keydown', (e) => {
                     if (editor.readOnly) return;
 
-                    if (e.key === 'Tab' || e.key === 'Enter') {
-                        const start = editor.selectionStart;
-                        const textBefore = editor.value.substring(0, start);
-                        let triggerKey = Object.keys(snippets).find(key => textBefore.endsWith(key));
+                    const start = editor.selectionStart;
+                    const end = editor.selectionEnd;
+                    const value = editor.value;
 
-                        if (triggerKey) {
-                            e.preventDefault(); 
+                    // --- 1. スマートインデント (Enterキー) ---
+                    if (e.key === 'Enter') {
+                        
+                        // (A) スニペットが発動する場合 (Enter)
+                        // (既存のロジック: Enterキーでのスニペット起動)
+                        const textBeforeKey = value.substring(0, start);
+                        let triggerKey = Object.keys(snippets).find(key => textBeforeKey.endsWith(key));
+                        
+                        if (triggerKey && start === end) { // (変更) カーソル位置でのみスニペット発動
+                            e.preventDefault();
                             const snippetValue = snippets[triggerKey];
-                            const newTextBefore = textBefore.substring(0, textBefore.length - triggerKey.length);
-                            const textAfter = editor.value.substring(start);
+                            const newTextBefore = textBeforeKey.substring(0, textBeforeKey.length - triggerKey.length);
+                            const textAfter = value.substring(end);
                             
                             editor.value = newTextBefore + snippetValue + textAfter;
 
+                            // カーソル位置を "" の間に移動
                             const firstQuoteIndex = snippetValue.indexOf('""');
                             let newCursorPos = (firstQuoteIndex !== -1)
                                 ? newTextBefore.length + firstQuoteIndex + 1
                                 : newTextBefore.length + snippetValue.length;
                                 
                             editor.selectionStart = editor.selectionEnd = newCursorPos;
-                            renderPreview(); 
-                        } else if (e.key === 'Tab') {
-                            e.preventDefault();
-                            const end = editor.selectionEnd;
-                            editor.value = editor.value.substring(0, start) + '\t' + editor.value.substring(end);
-                            editor.selectionStart = editor.selectionEnd = start + 1;
-                            renderPreview();
+                            
+                        } else {
+                            // (B) 通常の改行 (スマートインデント)
+                            e.preventDefault(); // デフォルトの改行をキャンセル
+
+                            // 現在行のインデントを取得
+                            const lastNewline = value.lastIndexOf('\n', start - 1);
+                            const currentLineStart = lastNewline + 1;
+                            // (変更) 現在行の全体を取得（カーソル位置までではなく）
+                            const currentLineText = value.substring(currentLineStart, value.indexOf('\n', currentLineStart) === -1 ? value.length : value.indexOf('\n', currentLineStart));
+
+                            const indentMatch = currentLineText.match(/^(\s*)/);
+                            const indent = indentMatch ? indentMatch[1] : '';
+
+                            // 改行とインデントを挿入
+                            const textBefore = value.substring(0, start);
+                            const textAfter = value.substring(end);
+                            
+                            editor.value = textBefore + '\n' + indent + textAfter;
+                            // カーソル位置を更新
+                            editor.selectionStart = editor.selectionEnd = start + 1 + indent.length;
                         }
+                        
+                        renderPreview(); // プレビュー更新
+                        return; // Enterキーの処理はここで終了
+                    }
+
+                    // --- 2. インデント/アウトデント (Tab / Shift+Tab) ---
+                    if (e.key === 'Tab') {
+                        
+                        // (A) Shift + Tab (一括アウトデント)
+                        if (e.shiftKey) {
+                            e.preventDefault(); // デフォルトのフォーカス移動をキャンセル
+                            
+                            // 選択範囲の開始行の頭を取得
+                            const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+                            
+                            // 選択範囲の終了行の終わりを取得 (endが改行直後の場合はその行を含めない)
+                            const lineEndTest = (end > lineStart && value[end - 1] === '\n') ? end - 1 : end;
+                            // (変更) 終了行の末尾インデックスを取得
+                            let lineEnd = value.indexOf('\n', lineEndTest);
+                            if (lineEnd === -1) {
+                                lineEnd = value.length; // 最終行の場合
+                            }
+                            
+                            const selectedText = value.substring(lineStart, lineEnd);
+                            
+                            let removedCharsCount = 0;
+                            let removedInFirstLine = 0;
+                            let firstLine = true;
+
+                            // 選択中の各行の先頭にあるタブまたはスペースを削除
+                            const newSelectedText = selectedText.replace(/^(\t| {1,4})/gm, (match) => {
+                                removedCharsCount += match.length;
+                                if (firstLine) {
+                                    removedInFirstLine = match.length;
+                                }
+                                firstLine = false;
+                                return ''; // 削除
+                            });
+
+                            if (removedCharsCount > 0) {
+                                // テキストエリアの値を更新
+                                editor.value = value.substring(0, lineStart) + newSelectedText + value.substring(lineEnd);
+                                // 選択範囲を再設定
+                                editor.selectionStart = Math.max(lineStart, start - removedInFirstLine);
+                                editor.selectionEnd = Math.max(editor.selectionStart, end - removedCharsCount);
+                            }
+
+                        // (B) Tab (一括インデント or スニペット or 通常タブ)
+                        } else {
+                            
+                            // (B-1) 範囲選択中のTab (一括インデント)
+                            if (start !== end) {
+                                e.preventDefault(); // デフォルトのタブ入力をキャンセル
+                                
+                                // (アウトデントと同じロジックで選択行を取得)
+                                const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+                                const lineEndTest = (end > lineStart && value[end - 1] === '\n') ? end - 1 : end;
+                                let lineEnd = value.indexOf('\n', lineEndTest);
+                                if (lineEnd === -1) {
+                                    lineEnd = value.length;
+                                }
+
+                                const selectedText = value.substring(lineStart, lineEnd);
+
+                                let addedCharsCount = 0;
+                                // 選択中の各行の先頭にタブを追加
+                                // (変更) 空行にはタブを追加しない
+                                const newSelectedText = selectedText.replace(/^(.)/gm, (match, firstChar) => {
+                                    addedCharsCount++;
+                                    return '\t' + firstChar; // 行頭にタブを追加
+                                });
+
+                                if (addedCharsCount > 0) {
+                                    // テキストエリアの値を更新
+                                    editor.value = value.substring(0, lineStart) + newSelectedText + value.substring(lineEnd);
+                                    // 選択範囲を再設定
+                                    editor.selectionStart = start + 1; // 最初の行にタブが追加されたため
+                                    editor.selectionEnd = end + addedCharsCount;
+                                }
+                            
+                            // (B-2) カーソルのみのTab (スニペット or 通常タブ)
+                            } else {
+                                // (既存のスニペット処理)
+                                const textBeforeKey = value.substring(0, start);
+                                let triggerKey = Object.keys(snippets).find(key => textBeforeKey.endsWith(key));
+
+                                if (triggerKey) {
+                                    e.preventDefault();
+                                    const snippetValue = snippets[triggerKey];
+                                    const newTextBefore = textBeforeKey.substring(0, textBeforeKey.length - triggerKey.length);
+                                    const textAfter = value.substring(end);
+                                    
+                                    editor.value = newTextBefore + snippetValue + textAfter;
+
+                                    const firstQuoteIndex = snippetValue.indexOf('""');
+                                    let newCursorPos = (firstQuoteIndex !== -1)
+                                        ? newTextBefore.length + firstQuoteIndex + 1
+                                        : newTextBefore.length + snippetValue.length;
+                                        
+                                    editor.selectionStart = editor.selectionEnd = newCursorPos;
+
+                                } else {
+                                    // (既存の通常のタブ挿入処理)
+                                    e.preventDefault();
+                                    editor.value = value.substring(0, start) + '\t' + value.substring(end);
+                                    editor.selectionStart = editor.selectionEnd = start + 1;
+                                }
+                            }
+                        }
+                        renderPreview(); // Tabキーの処理はここでプレビュー更新
                     }
                 });
             }
