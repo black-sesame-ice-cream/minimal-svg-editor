@@ -1105,25 +1105,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const selectedText = editor.value.substring(selectionStart, selectionEnd).trim();
 
-            // (3) テキストをパース
-            let x = NaN, y = NaN;
+            // (3) テキストをパース (★ここから大幅に変更)
+            // カンマ、スペース（改行含む）で数値を分割
+            const numberStrings = selectedText.split(/[\s,]+/); 
             
-            // "50, 100" or "50,100"
-            let parts = selectedText.split(',');
-            if (parts.length === 2) {
-                x = parseFloat(parts[0]);
-                y = parseFloat(parts[1]);
-            } else {
-                // "50 100" (スペース区切り)
-                parts = selectedText.split(/\s+/); // 複数のスペースに対応
-                if (parts.length === 2) {
-                    x = parseFloat(parts[0]);
-                    y = parseFloat(parts[1]);
-                }
+            // 空の文字列を除外し、数値に変換
+            const numbers = numberStrings
+                .filter(s => s.trim() !== '') // 空文字列を除去
+                .map(parseFloat);
+
+            // パースした数値の配列 (points) を作成
+            const points = [];
+            // 数値が奇数個、またはNaNが含まれる場合は無効
+            if (numbers.length % 2 !== 0 || numbers.some(isNaN)) {
+                 // ただし、単一の数値（"50" など）が選択された場合は無視 (クリア)
+                 selectionPointGroup.innerHTML = '';
+                 return;
+            }
+
+            for (let i = 0; i < numbers.length; i += 2) {
+                points.push({ x: numbers[i], y: numbers[i+1] });
             }
 
             // (4) パース失敗 or 座標情報がない場合はクリア
-            if (isNaN(x) || isNaN(y) || !lastSvgAttrs || !lastSvgAttrs.newViewBoxValue) {
+            if (points.length === 0 || !lastSvgAttrs || !lastSvgAttrs.newViewBoxValue) {
                 selectionPointGroup.innerHTML = '';
                 return;
             }
@@ -1163,27 +1168,79 @@ document.addEventListener('DOMContentLoaded', () => {
                 const strokeWidth = strokePx * unitsPerPixel;
                 const crosshairStrokeWidth = crosshairStrokePx * unitsPerPixel;
                 
-                selectionPointGroup.innerHTML = `
-                    <circle cx="${x}" cy="${y}" r="${radius}" 
-                            fill="${previewBgColor}" 
-                            stroke="${gridColor}"
-                            stroke-width="${strokeWidth}" 
-                            style="pointer-events: none;" />
-                    <line x1="${x - 2*radius}" y1="${y}" x2="${x + 2*radius}" y2="${y}"
-                          stroke="${gridColor}"
-                          stroke-width="${crosshairStrokeWidth}"
-                          style="pointer-events: none;" />
-                    <line x1="${x}" y1="${y - 2*radius}" x2="${x}" y2="${y + 2*radius}"
-                          stroke="${gridColor}"
-                          stroke-width="${crosshairStrokeWidth}"
-                          style="pointer-events: none;" />
-                    <text x="${x}" y="${y}" font-size="${2.5*radius}"
-                          fill="${gridColor}"
-                          stroke="${previewBgColor}"
-                          stroke-width="${2*strokeWidth}"
-                          paint-order="stroke">
-                          　${x}, ${y}</text>
-                `;
+                // (★ここからロジック分岐)
+                let innerHtmlContent = '';
+
+                if (points.length === 1) {
+                    // --- ケース1: 単一の点 (既存ロジック) ---
+                    const { x, y } = points[0];
+                    innerHtmlContent = `
+                        <circle cx="${x}" cy="${y}" r="${radius}" 
+                                fill="${previewBgColor}" 
+                                stroke="${gridColor}"
+                                stroke-width="${strokeWidth}" 
+                                style="pointer-events: none;" />
+                        <line x1="${x - 2*radius}" y1="${y}" x2="${x + 2*radius}" y2="${y}"
+                              stroke="${gridColor}"
+                              stroke-width="${crosshairStrokeWidth}"
+                              style="pointer-events: none;" />
+                        <line x1="${x}" y1="${y - 2*radius}" x2="${x}" y2="${y + 2*radius}"
+                              stroke="${gridColor}"
+                              stroke-width="${crosshairStrokeWidth}"
+                              style="pointer-events: none;" />
+                        <text x="${x}" y="${y}" font-size="${2.5*radius}"
+                              fill="${gridColor}"
+                              stroke="${previewBgColor}"
+                              stroke-width="${2*strokeWidth}"
+                              paint-order="stroke">
+                              　${x}, ${y}</text>
+                    `;
+
+                } else if (points.length > 1) {
+                    // --- ケース2: 複数の点 (新機能) ---
+                    
+                    // 1. ポリラインの描画
+                    const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
+                    innerHtmlContent += `
+                        <polyline points="${polylinePoints}"
+                                  fill="none"
+                                  stroke="${gridColor}"
+                                  stroke-width="${crosshairStrokeWidth}" 
+                                  style="pointer-events: none;" />
+                    `;
+
+                    // 2. 各点に小さな円と座標テキストを描画 (★変更箇所)
+                    points.forEach((p, index) => {
+                        // (★追加) 各点のx, yを取得
+                        const { x, y } = p; 
+
+                        // (★変更) ケース1（単一点）と全く同じ描画ロジックを適用
+                        innerHtmlContent += `
+                            <circle cx="${x}" cy="${y}" r="${radius}" 
+                                    fill="${previewBgColor}" 
+                                    stroke="${gridColor}"
+                                    stroke-width="${strokeWidth}" 
+                                    style="pointer-events: none;" />
+                            <line x1="${x - 2*radius}" y1="${y}" x2="${x + 2*radius}" y2="${y}"
+                                  stroke="${gridColor}"
+                                  stroke-width="${crosshairStrokeWidth}"
+                                  style="pointer-events: none;" />
+                            <line x1="${x}" y1="${y - 2*radius}" x2="${x}" y2="${y + 2*radius}"
+                                  stroke="${gridColor}"
+                                  stroke-width="${crosshairStrokeWidth}"
+                                  style="pointer-events: none;" />
+                            <text x="${x}" y="${y}" font-size="${2.5*radius}"
+                                  fill="${gridColor}"
+                                  stroke="${previewBgColor}"
+                                  stroke-width="${2*strokeWidth}"
+                                  paint-order="stroke">
+                                  　${x}, ${y}</text>
+                        `;
+                    });
+                }
+                
+                selectionPointGroup.innerHTML = innerHtmlContent;
+
             } catch (e) {
                 console.error("Failed to draw selection point:", e);
                 selectionPointGroup.innerHTML = '';
