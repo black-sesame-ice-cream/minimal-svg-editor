@@ -461,6 +461,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const rows = Math.max(1, Math.min(GRID_MAX_DIVISIONS, parseInt(gridRowsInput.value, 10) || 1));
             const zIndexOption = gridZSelect.value;
             
+            // (★変更) zIndexOption が 'none' ならグリッドを消して終了
+            if (zIndexOption === 'none') {
+                gridGroup.innerHTML = ''; // グリッドの内容をクリア
+                userSvgWrapper.style.zIndex = '10'; // ユーザーSVGを前面に
+                gridSvg.style.zIndex = '0';      // グリッドSVGを背面に
+                return; // これ以降の描画処理をスキップ
+            }
+
             // (新規) コンテナサイズ取得
             const containerWidth = preview.clientWidth;
             const containerHeight = preview.clientHeight;
@@ -542,7 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (zIndexOption === 'back') {
                 userSvgWrapper.style.zIndex = '10';
                 gridSvg.style.zIndex = '0';
-            } else {
+            } else { // 'front' の場合 ( 'none' は上で処理済み)
                 userSvgWrapper.style.zIndex = '0';
                 gridSvg.style.zIndex = '10';
             }
@@ -963,6 +971,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // pointColorPicker.addEventListener('input', updateSelectionPoint); // (削除)
     }
 
+
+
     function initFileHandlers() {
         loadButton.addEventListener('click', () => fileInput.click());
 
@@ -1330,5 +1340,3 @@ document.addEventListener('DOMContentLoaded', () => {
     initResizer();
 
 });
-
-
