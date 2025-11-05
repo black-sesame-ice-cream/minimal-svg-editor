@@ -1094,6 +1094,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // (変更) 関数を親スコープの変数に代入
         updateSelectionPoint = () => {
+
+            // (★変更) 選択ポイント描画用のヘルパー関数を定義
+            const createPointSvg = (x, y, radius, strokeWidth, crosshairStrokeWidth, gridColor, previewBgColor) => {
+                // ケース1（単一点）のロジックと同一
+                return `
+                    <circle cx="${x}" cy="${y}" r="${radius}" 
+                            fill="${previewBgColor}" 
+                            stroke="${gridColor}"
+                            stroke-width="${strokeWidth}" 
+                            style="pointer-events: none;" />
+                    <line x1="${x - 2*radius}" y1="${y}" x2="${x + 2*radius}" y2="${y}"
+                          stroke="${gridColor}"
+                          stroke-width="${crosshairStrokeWidth}"
+                          style="pointer-events: none;" />
+                    <line x1="${x}" y1="${y - 2*radius}" x2="${x}" y2="${y + 2*radius}"
+                          stroke="${gridColor}"
+                          stroke-width="${crosshairStrokeWidth}"
+                          style="pointer-events: none;" />
+                    <text x="${x}" y="${y}" font-size="${2.5*radius}"
+                          fill="${gridColor}"
+                          stroke="${previewBgColor}"
+                          stroke-width="${2*strokeWidth}"
+                          paint-order="stroke">
+                          　${x}, ${y}</text>
+                `;
+            };
             
             // (2) 選択テキストを取得
             const selectionStart = editor.selectionStart;
@@ -1105,30 +1131,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const selectedText = editor.value.substring(selectionStart, selectionEnd).trim();
 
-            // (3) テキストをパース (★ここから大幅に変更)
-            // カンマ、スペース（改行含む）で数値を分割
-            const numberStrings = selectedText.split(/[\s,]+/); 
-            
-            // 空の文字列を除外し、数値に変換
-            const numbers = numberStrings
-                .filter(s => s.trim() !== '') // 空文字列を除去
-                .map(parseFloat);
-
-            // パースした数値の配列 (points) を作成
-            const points = [];
-            // 数値が奇数個、またはNaNが含まれる場合は無効
-            if (numbers.length % 2 !== 0 || numbers.some(isNaN)) {
-                 // ただし、単一の数値（"50" など）が選択された場合は無視 (クリア)
-                 selectionPointGroup.innerHTML = '';
-                 return;
-            }
-
-            for (let i = 0; i < numbers.length; i += 2) {
-                points.push({ x: numbers[i], y: numbers[i+1] });
-            }
-
             // (4) パース失敗 or 座標情報がない場合はクリア
-            if (points.length === 0 || !lastSvgAttrs || !lastSvgAttrs.newViewBoxValue) {
+            if (!lastSvgAttrs || !lastSvgAttrs.newViewBoxValue) {
                 selectionPointGroup.innerHTML = '';
                 return;
             }
@@ -1136,7 +1140,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // (5) 描画 (drawGridからロジックを拝借)
             try {
                 // (変更) pointColor を削除し、previewBgColor を使用
-                // const pointColor = pointColorPicker.value; // (削除)
                 const previewBgColor = previewBgPicker.value;
                 const gridColor = gridColorPicker.value; 
 
@@ -1168,75 +1171,169 @@ document.addEventListener('DOMContentLoaded', () => {
                 const strokeWidth = strokePx * unitsPerPixel;
                 const crosshairStrokeWidth = crosshairStrokePx * unitsPerPixel;
                 
-                // (★ここからロジック分岐)
+                // --- (★変更) 選択テキストのパースロジック ---
+                
+                // 1. 曲線コマンドを無視 (スペースに置換)
+                const normalizedText = selectedText.replace(/[CcSsQqTt]/g, ' ');
+                
+                // 2. コマンドでトークン分割
+                const tokens = normalizedText.trim().split(/([MmLlHhVv])/g).filter(s => s.trim() !== '');
+
                 let innerHtmlContent = '';
 
-                if (points.length === 1) {
-                    // --- ケース1: 単一の点 (既存ロジック) ---
-                    const { x, y } = points[0];
-                    innerHtmlContent = `
-                        <circle cx="${x}" cy="${y}" r="${radius}" 
-                                fill="${previewBgColor}" 
-                                stroke="${gridColor}"
-                                stroke-width="${strokeWidth}" 
-                                style="pointer-events: none;" />
-                        <line x1="${x - 2*radius}" y1="${y}" x2="${x + 2*radius}" y2="${y}"
-                              stroke="${gridColor}"
-                              stroke-width="${crosshairStrokeWidth}"
-                              style="pointer-events: none;" />
-                        <line x1="${x}" y1="${y - 2*radius}" x2="${x}" y2="${y + 2*radius}"
-                              stroke="${gridColor}"
-                              stroke-width="${crosshairStrokeWidth}"
-                              style="pointer-events: none;" />
-                        <text x="${x}" y="${y}" font-size="${2.5*radius}"
-                              fill="${gridColor}"
-                              stroke="${previewBgColor}"
-                              stroke-width="${2*strokeWidth}"
-                              paint-order="stroke">
-                              　${x}, ${y}</text>
-                    `;
+                // 3. ロジック分岐
+                if (tokens.length === 0) {
+                    // パース失敗
+                    selectionPointGroup.innerHTML = '';
+                    return;
 
-                } else if (points.length > 1) {
-                    // --- ケース2: 複数の点 (新機能) ---
+                } else if (tokens.length === 1 && !tokens[0].match(/[MmLlHhVv]/)) {
+                    // --- ケース1/2: コマンドを含まない (従来のpoints属性ロジック) ---
+                    const numberStrings = tokens[0].split(/[\s,]+/);
+                    const numbers = numberStrings
+                        .filter(s => s.trim() !== '')
+                        .map(parseFloat);
+
+                    const points = [];
+                    if (numbers.length % 2 !== 0 || numbers.some(isNaN)) {
+                        selectionPointGroup.innerHTML = '';
+                        return;
+                    }
+                    for (let i = 0; i < numbers.length; i += 2) {
+                        points.push({ x: numbers[i], y: numbers[i+1] });
+                    }
+
+                    if (points.length === 0) {
+                         selectionPointGroup.innerHTML = '';
+                         return;
+                    }
+
+                    if (points.length === 1) {
+                        // ケース1: 単一の点
+                        const { x, y } = points[0];
+                        innerHtmlContent = createPointSvg(x, y, radius, strokeWidth, crosshairStrokeWidth, gridColor, previewBgColor);
                     
-                    // 1. ポリラインの描画
-                    const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
-                    innerHtmlContent += `
-                        <polyline points="${polylinePoints}"
-                                  fill="none"
-                                  stroke="${gridColor}"
-                                  stroke-width="${crosshairStrokeWidth}" 
-                                  style="pointer-events: none;" />
-                    `;
-
-                    // 2. 各点に小さな円と座標テキストを描画 (★変更箇所)
-                    points.forEach((p, index) => {
-                        // (★追加) 各点のx, yを取得
-                        const { x, y } = p; 
-
-                        // (★変更) ケース1（単一点）と全く同じ描画ロジックを適用
+                    } else {
+                        // ケース2: 複数の点 (ポリライン)
+                        const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
                         innerHtmlContent += `
-                            <circle cx="${x}" cy="${y}" r="${radius}" 
-                                    fill="${previewBgColor}" 
-                                    stroke="${gridColor}"
-                                    stroke-width="${strokeWidth}" 
-                                    style="pointer-events: none;" />
-                            <line x1="${x - 2*radius}" y1="${y}" x2="${x + 2*radius}" y2="${y}"
-                                  stroke="${gridColor}"
-                                  stroke-width="${crosshairStrokeWidth}"
-                                  style="pointer-events: none;" />
-                            <line x1="${x}" y1="${y - 2*radius}" x2="${x}" y2="${y + 2*radius}"
-                                  stroke="${gridColor}"
-                                  stroke-width="${crosshairStrokeWidth}"
-                                  style="pointer-events: none;" />
-                            <text x="${x}" y="${y}" font-size="${2.5*radius}"
-                                  fill="${gridColor}"
-                                  stroke="${previewBgColor}"
-                                  stroke-width="${2*strokeWidth}"
-                                  paint-order="stroke">
-                                  　${x}, ${y}</text>
+                            <polyline points="${polylinePoints}"
+                                      fill="none"
+                                      stroke="${gridColor}"
+                                      stroke-width="${crosshairStrokeWidth}" 
+                                      style="pointer-events: none;" />
                         `;
+                        points.forEach((p) => {
+                            innerHtmlContent += createPointSvg(p.x, p.y, radius, strokeWidth, crosshairStrokeWidth, gridColor, previewBgColor);
+                        });
+                    }
+
+                } else {
+                    // --- ケース3: d属性（M, L, H, V...）を含むテキスト ---
+                    let currentX = 0;
+                    let currentY = 0;
+                    let pathD = "";       // 接続線用
+                    let pointElements = ""; // 点のマーカー用
+                    let lastCommand = '';
+
+                    const createPointSvgHelper = (x, y) => {
+                        return createPointSvg(x, y, radius, strokeWidth, crosshairStrokeWidth, gridColor, previewBgColor);
+                    };
+
+                    tokens.forEach(token => {
+                        if (token.match(/^[MmLlHhVv]$/)) {
+                            lastCommand = token;
+                            return; // このトークンはコマンドなので、次の数値トークンに移る
+                        }
+                        if (!lastCommand) return; // 数値がコマンドより先に来た場合は無視
+
+                        // --- 数値トークンの処理 ---
+                        const numbers = token.split(/[\s,]+/).filter(s => s !== '').map(parseFloat).filter(n => !isNaN(n));
+                        if (numbers.length === 0) return;
+
+                        // M/m の後は暗黙の L/l に切り替えるための準備
+                        let effectiveCommand = lastCommand;
+                        // (M/mはループ初回のみ。2回目以降は L/l になる)
+                        if (lastCommand === 'M') effectiveCommand = 'L';
+                        if (lastCommand === 'm') effectiveCommand = 'l';
+
+                        let i = 0;
+                        while (i < numbers.length) {
+                            // M/m はループの初回のみ適用し、その後は L/l にする
+                            if (lastCommand === 'M' || lastCommand === 'm') {
+                                effectiveCommand = lastCommand; // M/mを適用
+                                lastCommand = (lastCommand === 'M') ? 'L' : 'l'; // 次回以降は L/l
+                            }
+
+                            switch (effectiveCommand) {
+                                case 'M': // Absolute Moveto
+                                case 'L': // Absolute Lineto
+                                    if (i + 1 >= numbers.length) break; // ペアじゃない
+                                    currentX = numbers[i];
+                                    currentY = numbers[i+1];
+                                    pathD += `${(effectiveCommand === 'M') ? 'M' : 'L'} ${currentX} ${currentY} `;
+                                    pointElements += createPointSvgHelper(currentX, currentY);
+                                    i += 2;
+                                    break;
+
+                                case 'm': // Relative Moveto
+                                case 'l': // Relative Lineto
+                                    if (i + 1 >= numbers.length) break;
+                                    currentX += numbers[i];
+                                    currentY += numbers[i+1];
+                                    pathD += `${(effectiveCommand === 'm') ? 'M' : 'L'} ${currentX} ${currentY} `;
+                                    pointElements += createPointSvgHelper(currentX, currentY);
+                                    i += 2;
+                                    break;
+                                    
+                                case 'H': // Absolute Horizontal Lineto
+                                    if (i >= numbers.length) break;
+                                    currentX = numbers[i];
+                                    pathD += `L ${currentX} ${currentY} `;
+                                    pointElements += createPointSvgHelper(currentX, currentY);
+                                    i++;
+                                    break;
+
+                                case 'h': // Relative Horizontal Lineto
+                                    if (i >= numbers.length) break;
+                                    currentX += numbers[i];
+                                    pathD += `L ${currentX} ${currentY} `;
+                                    pointElements += createPointSvgHelper(currentX, currentY);
+                                    i++;
+                                    break;
+
+                                case 'V': // Absolute Vertical Lineto
+                                    if (i >= numbers.length) break;
+                                    currentY = numbers[i];
+                                    pathD += `L ${currentX} ${currentY} `;
+                                    pointElements += createPointSvgHelper(currentX, currentY);
+                                    i++;
+                                    break;
+                                    
+                                case 'v': // Relative Vertical Lineto
+                                    if (i >= numbers.length) break;
+                                    currentY += numbers[i];
+                                    pathD += `L ${currentX} ${currentY} `;
+                                    pointElements += createPointSvgHelper(currentX, currentY);
+                                    i++;
+                                    break;
+                                    
+                                default: 
+                                    i++; // 無限ループ防止
+                                    break; 
+                            }
+                        }
                     });
+
+                    // 構築したパスと点を描画
+                    innerHtmlContent = `
+                        <path d="${pathD}"
+                              fill="none"
+                              stroke="${gridColor}"
+                              stroke-width="${crosshairStrokeWidth}" 
+                              style="pointer-events: none;" />
+                        ${pointElements}
+                    `;
                 }
                 
                 selectionPointGroup.innerHTML = innerHtmlContent;
