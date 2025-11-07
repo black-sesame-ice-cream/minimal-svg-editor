@@ -1131,6 +1131,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const selectedText = editor.value.substring(selectionStart, selectionEnd).trim();
 
+            const MAX_SELECTION_LENGTH_FOR_PREVIEW = 32;
+            if (selectedText.length > MAX_SELECTION_LENGTH_FOR_PREVIEW) {
+                selectionPointGroup.innerHTML = ''; // 長すぎる場合はクリアして終了
+                return;
+            }
+
+
             // (4) パース失敗 or 座標情報がない場合はクリア
             if (!lastSvgAttrs || !lastSvgAttrs.newViewBoxValue) {
                 selectionPointGroup.innerHTML = '';
